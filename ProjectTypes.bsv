@@ -19,6 +19,35 @@ typedef Bit#(TLog#(BlocksL2)) BlockNumL2;
 typedef TDiv#(DataSz, 8) NumBytes;
 typedef Vector#(NumBytes, Bool) ByteEn;
 
+////////////////////////////////////
+typedef 2 RowsL1;
+typedef 2 WaysL1;
+typedef Bit#(TLog#(RowsL1)) IndexL1;// deriving(Eq,Bits);
+typedef Bit#(TLog#(WaysL1)) WayL1;// deriving(Eq,Bits);
+
+typedef Bit#(TSub#(AddrSz, TAdd#(TLog#(RowsL1), OffsetSz))) TagL1; // [Tag;Index;Offset]
+typedef enum {Ready, StartMiss, SendFillReq, WaitFillResp, DoWrite} CacheStatusL1 deriving (Bits, Eq);
+typedef enum{Shared,Modified,Invalid} CacheCellType deriving (Bits, Eq);
+typedef enum{Inv,GM,InvGM,None} L2ReqL1 deriving (Bits, Eq);
+
+typedef struct{
+    CacheOp op;
+    Addr  addr;
+    Data  data;
+} CPUToL1CacheReq deriving(Eq,Bits); 
+
+typedef struct{
+    CacheOp op;
+    Addr  addr;
+	BlockData bData;
+} L1ToL2CacheReq deriving(Eq,Bits); 
+
+typedef struct{
+    Addr addr;
+    L2ReqL1 reqType;
+} L2ReqToL1 deriving(Eq,Bits); 
+////////////////////////////////////
+
 typedef Data Line;
 
 typedef BlockData MemResp;
@@ -49,8 +78,6 @@ typedef struct{
     Addr  addr;
     BlockData  data;
 } MemReq deriving(Eq,Bits);
-
-typedef enum{Inv,GM,InvGM,None} L2ReqL1 deriving (Bits, Eq);
 
 
 // TODO: remove
