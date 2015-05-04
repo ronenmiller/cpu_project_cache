@@ -46,6 +46,12 @@ typedef struct{
     Addr addr;
     L2ReqL1 reqType;
 } L2ReqToL1 deriving(Eq,Bits); 
+
+typedef struct{
+	IndexL1 idx;
+	Offset offset;
+	TagL1 tag;
+} BlockLocationL1 deriving(Eq,Bits);
 ////////////////////////////////////
 
 typedef Data Line;
