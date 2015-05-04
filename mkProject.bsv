@@ -91,15 +91,15 @@ module mkProject(CacheProj#(numCPU));
 		l1ToL2REQ.addr = l1ToL2Req.addr;
 		l1ToL2REQ.data = l1ToL2Req.bData;
 		l1ToL2REQ.proc = (1<<proc);
-		l2.req(l1ToL2REQ);
+		l2Cache.req(l1ToL2REQ);
 		stepL1Req <= 2;
 	endrule
 	
 	// L2 sends response to L1, L1 receives response from L2 
 	rule l2SendRespL1(stepL1Req == 2);
-		let resp = l2.resp;
+		let resp = l2Cache.resp;
 		$display("TB> sending L2 response with data 0x%h",resp);
-		//l2.respDeq;	
+		//l2Cache.respDeq;	
 		
 		l1CacheVec[procForReq].l1Resp(resp);
 		stepL1Req <= 0;
@@ -107,7 +107,7 @@ module mkProject(CacheProj#(numCPU));
 	
 	// L2 sends request to L1 for Inv/GM/InvGM
 	rule l2SendL1InvGM(isL2Req == 0);
-		L2ToNWCacheReq#(numCPU) l2ToL1Req <- l2.cacheInvDeq; // l2 sends request 
+		L2ToNWCacheReq#(numCPU) l2ToL1Req <- l2Cache.cacheInvDeq; // l2 sends request 
 		$display("TB> L2 sends L1 request %d for address 0x%h" ,l2ToL1Req.reqType, l2ToL1Req.addr);
 		
 		//change type L2ToNWCacheReq to L2ReqToL1 in order to transfer the request to l1 
@@ -139,7 +139,7 @@ module mkProject(CacheProj#(numCPU));
 		begin
 			if (invGMProc[i] == 1) begin
 				resp <- l1CacheVec[i].l1GetModified;
-				//l2.cacheModifiedResp(resp);
+				//l2Cache.cacheModifiedResp(resp);
 				$display("TB> sending L1 response to L2 with data 0x%h",resp);
 			end
 		end
