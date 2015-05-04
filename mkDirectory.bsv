@@ -11,7 +11,7 @@ import ProjectTypes::*;
 typedef enum{DestMem,DestL2} WBDest deriving (Bits, Eq);
 /* struct to hold request from L2 $ to directory. */
 typedef struct {
-	BlockNum blockNum;
+	BlockNumL2 blockNum;
 	CacheOp op; // chache request opcode: 0 - read, 1 - write, 2 - write_back
 	Bit#(numCPU) proc; // processor number
 	WBDest dest;
@@ -47,7 +47,7 @@ module mkDirLine (DirLine#(numCPU));
 	Reg#(Bit#(numCPU)) present <- mkReg(0); // Indicates if block is cached for each processor.
 	Reg#(StateType) state <- mkReg(Invalid); // directory fsm state of block: 0 - Shared, 1 - Modified, 2 - Invalid.
 	//Reg#(Bit#(numCPU)) modifier <- mkReg(0); // if block is modified - who is the modifier.
-	
+
 	/**********************************************************************
 		ActionValue method  : request
 		receives			: numCPU - type to define number of cpu's.
@@ -119,12 +119,13 @@ module mkDirLine (DirLine#(numCPU));
 		 **********************************************/
 		else if (req.op == WB) begin 
 			case (state) matches
-				Shared: // Not Possible
+				Shared:
 					begin
 						rep.invVec = present;
 						present <= 0;
 						state <= Invalid;
 						rep.nState = Invalid;
+						rep.reqType = Inv;
 					end
 				Modified:
 					begin
@@ -163,7 +164,7 @@ endmodule
 /* Interface: Directory */
 interface Directory#(numeric type numCPU,numeric type blocks);
 	method ActionValue#(TypeDirRep#(numCPU)) requestBlock(TypeDirReq#(numCPU,blocks) req);
-	method TypeDirStats#(numCPU) getDirStats(BlockNum blockNum);
+	method TypeDirStats#(numCPU) getDirStats(BlockNumL2 blockNum);
 endinterface
 
 /*********************************************************
@@ -183,7 +184,6 @@ module mkDirectory(Directory#(numCPU,blocks));
 		end
 	endrule
 	*/
-	
 	/**********************************************************************
 		ActionValue method  : request
 		receives			: numCPU - type to define number of cpu's.
@@ -195,11 +195,12 @@ module mkDirectory(Directory#(numCPU,blocks));
 		TypeDirRep#(numCPU) rep <- dir[req.blockNum].request(TypeDirLineReq{op:req.op, proc:req.proc,dest:req.dest});
 		return rep;
 	endmethod
+
 	
 	/****************************
 	TODO: remove
 	****************************/
-	method TypeDirStats#(numCPU) getDirStats(BlockNum blockNum);
+	method TypeDirStats#(numCPU) getDirStats(BlockNumL2 blockNum);
 		return dir[blockNum].getDirStats;
 	endmethod
 	

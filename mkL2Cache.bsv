@@ -25,22 +25,22 @@ endinterface
 // mkL2Cache module
 module mkL2Cache(L2Cache#(numCPU));
 	// the cache data array
-	Vector#(Rows,Vector#(Ways,Reg#(BlockData))) dataArray <- replicateM(replicateM(mkReg(0)));	
+	Vector#(RowsL2,Vector#(WaysL2,Reg#(BlockData))) dataArray <- replicateM(replicateM(mkReg(0)));	
 	// array to indicate if block is dirty (needs WB)
-	Vector#(Rows, Vector#(Ways,Reg#(Bool)))    dirtyArray <- replicateM(replicateM(mkReg(False)));
+	Vector#(RowsL2, Vector#(WaysL2,Reg#(Bool)))    dirtyArray <- replicateM(replicateM(mkReg(False)));
 	// cache blocks tags array
-	Vector#(Rows, Vector#(Ways,Reg#(Tag)))  tagArray <- replicateM(replicateM(mkRegU));
+	Vector#(RowsL2, Vector#(WaysL2,Reg#(TagL2)))  tagArray <- replicateM(replicateM(mkReg(0)));
 	// counter for replacing policy for each index
-	Vector#(Rows,Reg#(Way)) cntrArr <- replicateM(mkReg(0));
+	Vector#(RowsL2,Reg#(WayL2)) cntrArr <- replicateM(mkReg(0));
 	// Bypass FIFOF for hit response
-	FIFOF#(BlockLocation) hitQ <- mkBypassFIFOF();
+	FIFOF#(BlockLocationL2) hitQ <- mkBypassFIFOF();
 	// Invalidate FIFOF
 	FIFOF#(L2ToNWCacheReq#(numCPU)) invQ <- mkBypassFIFOF();
 	// wb get modified value req FIFOF
 	FIFOF#(BlockData) cacheModifiedQ <- mkBypassFIFOF(); //TODO: method to get modified val
 	// write back block location
 	
-	Reg#(BlockLocation) blockLocation <- mkRegU;
+	Reg#(BlockLocationL2) blockLocation <- mkRegU;
 	Reg#(CacheReq#(numCPU))     missReq <- mkRegU;
 	Reg#(CacheStatus) status <- mkReg(Ready);
 	FIFOF#(MemReq)   mReqQ <- mkFIFOF;
@@ -49,30 +49,27 @@ module mkL2Cache(L2Cache#(numCPU));
 	Reg#(Bit#(numCPU)) modifier <- mkReg(0);
 	Reg#(Bool) isHit <- mkReg(False);
 	// directory
-	Directory#(numCPU,Blocks) dir <- mkDirectory();
+	Directory#(numCPU,BlocksL2) dir <- mkDirectory();
 	//TODO: remove hit/miss counters
 	Reg#(Bit#(32)) hitCntr <- mkReg(0);
 	Reg#(Bit#(32)) missCntr <- mkReg(0);
+	Reg#(L2ReqL1) invCmd <- mkReg(None);
 	
 	
 	
 	// function to calculate block number
-	function BlockNum getBlockNum(Index idx,Way way);
-			BlockNum res = zeroExtend(idx)*fromInteger(valueOf(Ways))+zeroExtend(way);
+	function BlockNumL2 getBlockNum(IndexL2 idx,WayL2 way);
+			BlockNumL2 res = zeroExtend(idx)*fromInteger(valueOf(WaysL2))+zeroExtend(way);
 			return res;
 	endfunction
 	
-	
-	/* 
-	TODO: remove:
-	*/
 	rule printL2CacheStatus;
-		for (Integer i=0; i< valueOf(Rows); i = i+1) begin
-			for (Integer j=0; j< valueOf(Ways); j = j+1) begin
-				BlockNum bNum = getBlockNum(fromInteger(i),fromInteger(j));
+		for (Integer i=0; i< valueOf(RowsL2); i = i+1) begin
+			for (Integer j=0; j< valueOf(WaysL2); j = j+1) begin
+				BlockNumL2 bNum = getBlockNum(fromInteger(i),fromInteger(j));
 				TypeDirStats#(numCPU) dStats = dir.getDirStats(bNum);
 				$display("blocknum: %3d state: %1d present: %b Index: %4d Way: %2d",bNum,dStats.state,dStats.present,i,j);
-				$display("data: %h",dataArray[i][j]);
+				$display("tag: %h",tagArray[i][j]);
 			end
 		end
 	endrule
@@ -103,18 +100,19 @@ module mkL2Cache(L2Cache#(numCPU));
 		$display("Cache status is %s:",stateStr);
 		$display("Misses: %d:",missCntr);
 		$display("Hits: %d:",hitCntr);
+		$display("InvCmd: %b:",invCmd);
 	endrule
 	
 	// get modified value from modifier L1 cache
 	rule doGetModified(status == GetModified);
-		Index idx = blockLocation.idx;
-		Way way = blockLocation.way;
+		IndexL2 idx = blockLocation.idx;
+		WayL2 way = blockLocation.way;
 		BlockData data = cacheModifiedQ.first;
-		cacheModifiedQ.deq;
 		dataArray[idx][way] <= data;
 		if (isHit) begin
-			status <= Ready;
-			hitQ.enq(blockLocation);
+			status <= FillHit;
+			//hitQ.enq(blockLocation);
+			isHit <= False;
 		end
 		else status <= WrBack;
 	endrule
@@ -139,15 +137,20 @@ module mkL2Cache(L2Cache#(numCPU));
 	rule doFillResp (status==FillResp);
 		let data = mRespQ.first;  
 		mRespQ.deq;
-		Index idx = blockLocation.idx;
-		Way way = blockLocation.way;
-		Tag tag = truncateLSB(missReq.addr);
+		IndexL2 idx = blockLocation.idx;
+		WayL2 way = blockLocation.way;
+		TagL2 tag = truncateLSB(missReq.addr);
 		tagArray[idx][way] <= tag;
 		dataArray[idx][way] <= data;
 		if (missReq.op == Rd) dirtyArray[idx][way] <= False;
 		status <= FillHit;
-		// move block state in directory to shared
+		// move block state in directory for new block
 		let dirRep <- dir.requestBlock(TypeDirReq{blockNum:getBlockNum(idx,way),op:missReq.op,proc:missReq.proc,dest:?});
+	endrule
+	
+	// deq the response from l1
+	rule doModDeq(status==FillHit && cacheModifiedQ.notEmpty);
+		cacheModifiedQ.deq;
 	endrule
 	
 	// once memory returned value and updated in cache return value
@@ -156,24 +159,24 @@ module mkL2Cache(L2Cache#(numCPU));
 		status <= Ready;
 	endrule
 
-	
+	// get request from l1 and process it.
 	method Action req(CacheReq#(numCPU) r) if (status==Ready);
-		let offset = truncate(r.addr);
+		Offset offset = truncate(r.addr);
 		// get index
-		Index idx =	truncate(r.addr>>valueOf(OffsetSz));
+		IndexL2 idx =	truncate(r.addr>>valueOf(OffsetSz));
 		// get block tag
-		Tag tag = truncateLSB(r.addr);
+		TagL2 tag = truncateLSB(r.addr);
 		// block way
-		Way way = cntrArr[idx];
+		WayL2 way = cntrArr[idx];
 		// flag if tag found
 		Bool found = False;
 		// store the last request - used also if data is modified in one of child caches.
 		missReq <= r;
-		BlockLocation loc;
+		BlockLocationL2 loc;
 		loc.offset = offset;
 		loc.idx = idx;
 		// for tag match in cache index:
-		for (Integer i=0; i<valueOf(Ways); i = i+1) begin
+		for (Integer i=0; i<valueOf(WaysL2); i = i+1) begin
 			if (tagArray[idx][i] == tag) begin
 				way = fromInteger(i);
 				found = True;
@@ -191,10 +194,14 @@ module mkL2Cache(L2Cache#(numCPU));
 		3) Go to WB state, and request new block from memory.
 		****************************************************************************/
 		if (!found) begin // miss - no tag match need to get from memory
+			isHit <= False;
 			let dirRep <- dir.requestBlock(TypeDirReq{blockNum:getBlockNum(idx,way),op:WB,proc:r.proc,dest:DestMem});
+			invCmd <= dirRep.reqType;
 			missCntr <= missCntr + 1;
 			cntrArr[idx] <= cntrArr[idx]+1;
+			$display("reply pre is: invVec: %b pstate: %d nstate: %d reqType %b",dirRep.invVec,dirRep.pState,dirRep.nState,dirRep.reqType);
 			if (dirRep.invVec != 0) begin
+				$display("reply post is: invVec: %b pstate: %d nstate: %d reqType %b",dirRep.invVec,dirRep.pState,dirRep.nState,dirRep.reqType);
 				invQ.enq(L2ToNWCacheReq{proc:dirRep.invVec,addr:r.addr,reqType:dirRep.reqType});
 			end
 			case (dirRep.pState) matches
@@ -222,8 +229,11 @@ module mkL2Cache(L2Cache#(numCPU));
 		Invalid - Not possible.
 		****************************************************************************/
 		else begin
-			isHit <= True;
 			let dirRep <- dir.requestBlock(TypeDirReq{blockNum:getBlockNum(idx,way),op:r.op,proc:r.proc,dest:DestL2});
+			invCmd <= dirRep.reqType;
+			if (cntrArr[idx] == way) begin
+				cntrArr[idx] <= cntrArr[idx]+1;
+			end
 			if (r.op != WB) hitCntr <= hitCntr + 1;
 			if (dirRep.invVec != 0) begin
 				invQ.enq(L2ToNWCacheReq{proc:dirRep.invVec,addr:r.addr,reqType:dirRep.reqType});
@@ -231,7 +241,7 @@ module mkL2Cache(L2Cache#(numCPU));
 			case (dirRep.pState) matches
 				Shared:
 					begin
-						hitQ.enq(BlockLocation{idx:idx,way:way,offset:offset});
+						status <= FillHit;
 					end
 				Modified:
 					begin
@@ -239,13 +249,13 @@ module mkL2Cache(L2Cache#(numCPU));
 							dataArray[idx][way] <= r.data;
 						end
 						else begin
+							isHit <= True;
 							status <= GetModified;
 						end
 					end
 			endcase
 		end
 	endmethod
-	
 	// get Invalidation L1 cache request.
 	method ActionValue#(L2ToNWCacheReq#(numCPU)) cacheInvDeq if (invQ.notEmpty);
 		invQ.deq;
@@ -253,7 +263,7 @@ module mkL2Cache(L2Cache#(numCPU));
 	endmethod
 	
 	// get modified block data
-	method Action cacheModifiedResp(BlockData data) if (status == GetModified);
+	method Action cacheModifiedResp(BlockData data);
 		cacheModifiedQ.enq(data);
 	endmethod
 	

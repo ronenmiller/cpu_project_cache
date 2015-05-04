@@ -19,7 +19,7 @@ module mkDirectoryTB();
 	Reg#(Bit#(1)) finish <- mkReg(0);
 	Reg#(Bit#(10)) cycle <- mkReg(0);
 	// This TB is built for 3 CPUs
-	Directory#(NumCPU3,Blocks) dir <- mkDirectory();
+	Directory#(NumCPU3,BlocksL2) dir <- mkDirectory();
 
 	
 	rule checkStart(state == Start);
