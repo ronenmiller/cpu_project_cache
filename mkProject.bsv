@@ -15,7 +15,12 @@ endinterface
 
 // interface for project
 interface CacheProj#(numeric type numCPU);
+	// interface with CPUs
 	interface Vector#(numCPU, L1Cache_Proc) cacheProcIF;
+	
+	// interface with Memory
+	method ActionValue#(MemReq) mReqDeq;
+	method Action memResp(MemResp r);
 endinterface
 
 // mkProject module
@@ -28,7 +33,7 @@ module mkProject(CacheProj#(numCPU));
 	Vector#(numCPU,L1Cache) l1CacheVec <- replicateM(mkL1Cache);
 	
 	// create L2 cache
-	L2Cache#(numCPU) l2 <- mkL2Cache();
+	L2Cache#(numCPU) l2Cache <- mkL2Cache();
 	
 	// Reg
 	Reg#(Bit#(2)) stepL1Req 	         <- mkReg(0);
@@ -142,6 +147,16 @@ module mkProject(CacheProj#(numCPU));
 		stepL1Req <= 0;
 	endrule
 	
+	// get mem request from l2Cache
+	method ActionValue#(MemReq) mReqDeq;
+		let req <- l2Cache.mReqDeq;
+		return req;
+	endmethod
+	
+	// send mem response to l2Cache
+	method Action memResp(MemResp r);
+		l2Cache.memResp(r);
+	endmethod
 	/***********************************************
 	Fill up interface for cpu and l1 communication
 	************************************************/

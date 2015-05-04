@@ -287,7 +287,7 @@ module mkL2Cache(L2Cache#(numCPU));
 	endmethod
 	
 	// memory returns data
-	method Action memResp(MemResp r) if (mReqQ.notFull);
+	method Action memResp(MemResp r) if (mRespQ.notFull);
 		mRespQ.enq(r);
 	endmethod
 	
