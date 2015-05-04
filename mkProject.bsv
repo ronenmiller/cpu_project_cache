@@ -13,6 +13,7 @@ interface L1Cache_Proc;
 	method ActionValue#(Data) resp;
 endinterface
 
+
 // interface for project
 interface CacheProj#(numeric type numCPU);
 	// interface with CPUs
@@ -44,40 +45,27 @@ module mkProject(CacheProj#(numCPU));
 	
 	Reg#(Bool) start <- mkReg(False);
 	
-	
 	// find which L1 will send request to L2
 	rule checkL1Req(stepL1Req == 0);
-		//Bit#(TLog#(numCPU)) cnt = cntReq;
-		Bit#(TLog#(numCPU)) cnt = 1;
+		Bit#(TLog#(numCPU)) cnt = cntReq;
+		//Bit#(TLog#(numCPU)) cnt = 1;
 		
 		Bool flag = False;
-		//for(Integer i=unpack(cntReq) ; (i<valueof(numCPU) && flag == False) ; i=i+1)
-		/*while (cnt < fromInteger(valueOf(numCPU)) && flag == False)
+		for(Integer i = 0 ; (i<valueof(numCPU) && flag == False) ; i=i+1)
+		//while (cnt < fromInteger(valueOf(numCPU)) && flag == False)
 		begin
-			let tmp <- l1CacheVec[cnt].ismReqQFull;
-			if(tmp == True) begin //if there is a request from the next L1 cache
+			let isFull <- l1CacheVec[cnt].ismReqQFull;
+			if(isFull == True) begin //if there is a request from the next L1 cache
 				stepL1Req <= 1;
 				procForReq <= cnt;
 				$display("TB> L1 number %d will send to L2 a request",procForReq);
-				if (cnt == (fromInteger(valueOf(numCPU))-1)) begin 
-					cntReq <= 0;
-				end
-				else begin
-					cntReq <= cnt+1;
-				end
 				flag = True; //break the for loop
-				stepL1Req <= 1;
-			end
-			
-			/*else if (tmp == False && cnt == (fromInteger(valueOf(numCPU))-1)) begin //else check the next L1 cache
-				cnt = 0;
+				cntReq <= cnt+1; //
 			end
 			else begin
 				cnt = cnt+1;
 			end
-		end*/
-		procForReq <= 0; //
-		stepL1Req <= 1;//
+		end
 	endrule
 	
 	// L1 sends request to L2, L2 receives request from L1
@@ -118,7 +106,7 @@ module mkProject(CacheProj#(numCPU));
 		
 		//save the proc_vec given by l2 (indicates which processes need to do the requst)
 		// for use of rule l1SendRespL2
-		invGMProc <= l2ToL1Req.proc; 
+		invGMProc <= l2ToL1Req.proc;
 		
 		//according to the proc_vec send to the l1's the request
 		for (Integer i=0 ; i < valueof(numCPU) ; i = i+1)
@@ -134,29 +122,21 @@ module mkProject(CacheProj#(numCPU));
 	
 	// L1 sends response to L2
 	rule l1SendRespL2(isL2Req == 1);
-		BlockData resp = 0;
+		Vector#(numCPU,BlockData) respVec = replicate(0);
+		Bit#(TLog#(numCPU)) modProc = 0;
+		//according to the proc_vec get the l1's response and send it to l2
 		for (Integer i=0 ; i < valueof(numCPU) ; i = i+1)
 		begin
 			if (invGMProc[i] == 1) begin
-				resp <- l1CacheVec[i].l1GetModified;
-				//l2Cache.cacheModifiedResp(resp);
-				$display("TB> sending L1 response to L2 with data 0x%h",resp);
+				respVec[i] <- l1CacheVec[i].l1GetModified;
+				$display("TB> sending L1 response to L2 with data 0x%h",respVec[i]);
+				modProc = fromInteger(i);
 			end
 		end
-	
+		l2Cache.cacheModifiedResp(respVec[modProc]);
 		stepL1Req <= 0;
 	endrule
 	
-	// get mem request from l2Cache
-	method ActionValue#(MemReq) mReqDeq;
-		let req <- l2Cache.mReqDeq;
-		return req;
-	endmethod
-	
-	// send mem response to l2Cache
-	method Action memResp(MemResp r);
-		l2Cache.memResp(r);
-	endmethod
 	/***********************************************
 	Fill up interface for cpu and l1 communication
 	************************************************/
@@ -173,6 +153,17 @@ module mkProject(CacheProj#(numCPU));
 							endinterface;
 	end
 	interface cacheProcIF = cacheProcIF0;
+	
+	// get mem request from l2Cache
+	method ActionValue#(MemReq) mReqDeq;
+		let req <- l2Cache.mReqDeq;
+		return req;
+	endmethod
+	
+	// send mem response to l2Cache
+	method Action memResp(MemResp r);
+		l2Cache.memResp(r);
+	endmethod
 	
 endmodule
 
