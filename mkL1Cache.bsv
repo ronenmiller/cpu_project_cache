@@ -2,7 +2,7 @@ import FIFOF::*;
 import FIFO::*;
 import SpecialFIFOs::*;
 import Vector::*;
-import projectTypes::*;
+import ProjectTypes::*;
 
 typedef struct{
     L1ToL2CacheReq cReq;
@@ -49,7 +49,7 @@ module mkL1Cache(L1Cache);
 	FIFOF#(L2ReqToL1)       l2ReqQ <- mkFIFOF;
 	FIFOF#(BlockData)       l2RespQ <- mkFIFOF;
 	
-	
+	Reg#(BlockLocationL1)  blockLocation <- mkRegU;
 	Reg#(L1ForMiss)        miss <- mkRegU;
 	Reg#(CacheStatusL1)    status <- mkReg(Ready);
 	Reg#(Bit#(1)) 		   isInvGMReq <- mkReg(0);
@@ -62,9 +62,13 @@ module mkL1Cache(L1Cache);
 		let found = miss.found;
 		WayL1 way = miss.way;
 		
-		Bit#(TLog#(Words)) offset = truncate(addr>>2);
-		IndexL1 idx = truncate(addr>>valueOf(OffsetSz));
-		TagL1 tag = truncateLSB(addr);
+		let offset =  blockLocation.offset;
+		let idx =  blockLocation.idx;
+		let tag =  blockLocation.tag;
+		
+		//Bit#(TLog#(Words)) offset = truncate(addr>>2);
+		//IndexL1 idx = truncate(addr>>valueOf(OffsetSz));
+		//TagL1 tag = truncateLSB(addr);
 		
 		//check the condition
 		if((miss.found == False) && (cntrSet[idx] >= fromInteger(valueof(WaysL1)))) //block is not in the $ and need to swap out a block
@@ -88,9 +92,13 @@ module mkL1Cache(L1Cache);
 		let found = miss.found;
 		WayL1 way = miss.way;
 		
-		Bit#(TLog#(Words)) offset = truncate(addr>>2);
-		IndexL1 idx = truncate(addr>>valueOf(OffsetSz));
-		TagL1 tag = truncateLSB(addr);
+		let offset =  blockLocation.offset;
+		let idx =  blockLocation.idx;
+		let tag =  blockLocation.tag;
+		
+		//Bit#(TLog#(Words)) offset = truncate(addr>>2);
+		//IndexL1 idx = truncate(addr>>valueOf(OffsetSz));
+		//TagL1 tag = truncateLSB(addr);
 
 		let blockData = mRespQ.first;
 		
@@ -135,8 +143,11 @@ module mkL1Cache(L1Cache);
 		let found = miss.found;
 		WayL1 way = miss.way;		
 		
-		Bit#(TLog#(Words)) offset = truncate(addr>>2);
-		IndexL1 idx = truncate(addr>>valueOf(OffsetSz));
+		let offset =  blockLocation.offset;
+		let idx =  blockLocation.idx;
+		
+		//Bit#(TLog#(Words)) offset = truncate(addr>>2);
+		//IndexL1 idx = truncate(addr>>valueOf(OffsetSz));
 
 		stateArray[idx][way] <= Modified;
 		Vector#(Words, Bit#(DataSz)) words = unpack(dataArray[idx][way]); 
@@ -167,9 +178,13 @@ module mkL1Cache(L1Cache);
 		L2ReqToL1 req = l2ReqQ.first;
 		l2ReqQ.deq;
 		
-		Bit#(TLog#(Words)) offset = truncate(req.addr>>2);
-		IndexL1 idx = truncate(req.addr>>valueOf(OffsetSz)); //get index
-		TagL1 tag = truncateLSB(req.addr); //get block tag
+		let offset =  blockLocation.offset;
+		let idx =  blockLocation.idx;
+		let tag =  blockLocation.tag;
+		
+		//Bit#(TLog#(Words)) offset = truncate(req.addr>>2);
+		//IndexL1 idx = truncate(req.addr>>valueOf(OffsetSz)); //get index
+		//TagL1 tag = truncateLSB(req.addr); //get block tag
 		WayL1 way = 0;
 		// find tag in set 
 		for (Integer i=0; i<valueOf(WaysL1); i = i+1) begin
@@ -231,6 +246,13 @@ module mkL1Cache(L1Cache);
 		end
 		$display("way is %h", way);//TODO
 		$display("block was %b", found);//TODO
+		
+		BlockLocationL1 loc;
+		loc.offset = offset;
+		loc.idx = idx;
+		loc.tag = tag;
+		
+		blockLocation <= loc ;
 		
 		let data = dataArray[idx][way];
 		let state = stateArray[idx][way];
