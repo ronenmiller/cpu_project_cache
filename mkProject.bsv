@@ -6,46 +6,23 @@ import mkL1Cache::*;
 import mkL2Cache::*;
 import ProjectTypes::*;
 
-// interface
-interface Project#(numeric type numCPU);
-	/*interface Vector#(numCPU, L1Cache) cacheProc;*/
-	method Action str(Bool b);
+
+// interface between L1cache and processor
+interface L1Cache_Proc;
+	method Action req(CPUToL1CacheReq r);
+	method ActionValue#(Data) resp;
+endinterface
+
+// interface for project
+interface CacheProj#(numeric type numCPU);
+	interface Vector#(numCPU, L1Cache_Proc) cacheProcIF;
 endinterface
 
 // mkProject module
-module mkProject(Project#(numCPU));
-	/*Vector#(numCPU, L1Cache) cacheProc0;
-
-	for (Integer i=0; i < valueOf(numCPU); i = i+1) 
-	begin
-		cacheProc0[i] = interface L1Cache;
-							method Action req(CPUToL1CacheReq r); 
-								L1Cache.req(r);//?
-							endmethod
-							
-							method ActionValue#(Data) resp;
-                                L1Cache.resp;    //?                          
-							endmethod
-
-							method ActionValue#(L1ToL2CacheReq) l1Req; 
-								L1Cache.l1Req;//?
-							endmethod
-
-							method Action l1Resp(BlockData r); 
-								L1Cache.l1Resp(r);//?
-							endmethod
-
-							method Action l1ChangeInvGM(L2ReqToL1 r);
-								L1Cache.l1ChangeInvGM(r);//?
-							endmethod
-
-							method ActionValue#(BlockData) l1GetModified;
-								L1Cache.l1GetModified;
-							endmethod
-						endinterface;
-	end
-
-	interface cacheProc = cacheProc0;*/
+module mkProject(CacheProj#(numCPU));
+	
+	// cpu to l1 interface vector - see fill at end of code
+	Vector#(numCPU, L1Cache_Proc) cacheProcIF0;
 	
 	// create L1 cache
 	Vector#(numCPU,L1Cache) l1CacheVec <- replicateM(mkL1Cache);
@@ -109,20 +86,6 @@ module mkProject(Project#(numCPU));
 		stepL1Req <= 2;
 	endrule
 	
-	/*// L1 sends request to L2, L2 receives request from L1
-	rule l1SendL2Req(stepL1Req == 0);
-		L1ToL2CacheReq l1ToL2Req <- l1.l1Req;
-		$display("TB> L1 sends L2 request for address 0x%h",l1ToL2Req.addr);
-		
-		CacheReq#(numCPU) l1ToL2REQ;
-		l1ToL2REQ.op = l1ToL2Req.op;
-		l1ToL2REQ.addr = l1ToL2Req.addr;
-		l1ToL2REQ.data = l1ToL2Req.bData;
-		l1ToL2REQ.proc = //TODO:how to get proc????
-		l2.req(l1ToL2REQ);
-		stepL1Req <= 1;
-	endrule*/
-	
 	// L2 sends response to L1, L1 receives response from L2 
 	rule l2SendRespL1(stepL1Req == 2);
 		let resp = l2.resp;
@@ -170,10 +133,22 @@ module mkProject(Project#(numCPU));
 		stepL1Req <= 0;
 	endrule
 	
-	
-	method Action str(Bool b);
-		start <= b;
-	endmethod
+	/***********************************************
+	Fill up interface for cpu and l1 communication
+	************************************************/
+	for (Integer i=0; i < valueOf(numCPU); i = i+1) begin
+		cacheProcIF0[i] = interface L1Cache_Proc;
+								method Action req(CPUToL1CacheReq r); 
+									l1CacheVec[i].req(r);
+								endmethod
+								
+								method ActionValue#(Data) resp;
+									let cResp <- l1CacheVec[i].resp;
+  									return cResp;                    
+								endmethod
+							endinterface;
+	end
+	interface cacheProcIF = cacheProcIF0;
 	
 endmodule
 
