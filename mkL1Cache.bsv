@@ -25,6 +25,7 @@ interface L1Cache;
 	//interface with L2
 	method ActionValue#(L1ToL2CacheReq) l1Req; 
 	method Action l1Resp(BlockData r); 
+	method ActionValue#(Bool) ismReqQFull;
 	method Action l1ChangeInvGM(L2ReqToL1 r);
 	method ActionValue#(BlockData) l1GetModified;
 endinterface
@@ -330,6 +331,11 @@ module mkL1Cache(L1Cache);
 	//method//response from L2
 	method Action l1Resp(BlockData r); 
 		mRespQ.enq(r);
+	endmethod
+	
+	//method//check is there is a request to L2
+	method ActionValue#(Bool) ismReqQFull;
+		return mReqQ.notEmpty;
 	endmethod
 	
 	//method//request from L2 for Inv/GM/InvGM
