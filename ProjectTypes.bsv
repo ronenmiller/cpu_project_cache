@@ -49,7 +49,7 @@ typedef struct{
 
 typedef struct{
 	IndexL1 idx;
-	Offset offset;
+	Bit#(TLog#(Words)) offset;
 	TagL1 tag;
 } BlockLocationL1 deriving(Eq,Bits);
 ////////////////////////////////////

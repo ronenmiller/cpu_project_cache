@@ -10,13 +10,13 @@ import ProjectTypes::*;
 
 // interface
 interface Project#(numeric type numCPU);
-	interface Vector#(numCPU, L1Cache) cacheProc;
+	/*interface Vector#(numCPU, L1Cache) cacheProc;*/
 
 endinterface
 
 // mkProject module
 module mkProject(L2Cache#(numCPU));
-	Vector#(numCPU, L1Cache) cacheProc0;
+	/*Vector#(numCPU, L1Cache) cacheProc0;
 
 	for (Integer i=0; i < valueOf(numCPU); i = i+1) 
 	begin
@@ -47,7 +47,7 @@ module mkProject(L2Cache#(numCPU));
 						endinterface;
 	end
 
-	interface cacheProc = cacheProc0;
+	interface cacheProc = cacheProc0;*/
 	
 	// create L1 cache
 	Vector#(numCPU,L1Cache) l1CacheVec <- replicateM(mkL1Cache);
@@ -60,8 +60,49 @@ module mkProject(L2Cache#(numCPU));
 	Reg#(Bit#(1)) isL2Req    <- mkReg(0);
 	Reg#(Bit#(10)) invGMProc <- mkReg(0);
 	Reg#(Bit#(10)) cntReq    <- mkReg(0);
+	Reg#(Bit#(10)) procForReq <- mkReg(0);
+	
+	
+	// find which L1 will send request to L2
+	rule checkL1Req(isL1Req == 0);
+		Reg#(Bit#(10)) cnt = cntReq;
+		for(cnt ; cnt<numCPU ; cnt=cnt+1)
+		begin
+			if(l1CacheVec[cnt].ismReqQFull) begin
+				isL1Req <=1;
+				procForReq <= cnt;
+				$display("TB> L1 number %d will send to L2 a request",procForReq);
+				if (cnt == numCPU-1) begin 
+					cntReq <= 0;
+				end
+				else begin
+					cntReq <= cnt+1;
+				end
+				break;
+			end
+			
+			if (cnt == numCPU-1) begin 
+				cntReq <= -1;
+			end
+		end
+	endrule
 	
 	// L1 sends request to L2, L2 receives request from L1
+	rule l1SendL2Req(isL1Req == 1);
+		Reg#(Bit#(10)) proc = procForReq;
+		L1ToL2CacheReq l1ToL2Req <- l1CacheVec[proc].l1Req;
+		$display("TB> L1 number %d sends L2 request for address 0x%h",proc, l1ToL2Req.addr);
+		
+		CacheReq#(numCPU) l1ToL2REQ;
+		l1ToL2REQ.op = l1ToL2Req.op;
+		l1ToL2REQ.addr = l1ToL2Req.addr;
+		l1ToL2REQ.data = l1ToL2Req.bData;
+		l1ToL2REQ.proc = proc;
+		l2.req(l1ToL2REQ);
+		isL1Req <= 2;
+	endrule
+	
+	/*// L1 sends request to L2, L2 receives request from L1
 	rule l1SendL2Req(isL1Req == 0);
 		L1ToL2CacheReq l1ToL2Req <- l1.l1Req;
 		$display("TB> L1 sends L2 request for address 0x%h",l1ToL2Req.addr);
@@ -73,23 +114,17 @@ module mkProject(L2Cache#(numCPU));
 		l1ToL2REQ.proc = //TODO:how to get proc????
 		l2.req(l1ToL2REQ);
 		isL1Req <= 1;
-	endrule
+	endrule*/
 	
-	// L2 sends response to L1
-	rule l2SendRespL1(isL1Req == 1);
+	// L2 sends response to L1, L1 receives response from L2 
+	rule l2SendRespL1(isL1Req == 2);
 		BlockData resp <- l2.resp;
 		$display("TB> sending L2 response with data 0x%h",resp);
+		l2.respDeq;	
 		
-		l1.l1Resp(resp);
-		isL1Req <= 2;
-	endrule
-
-	// L1 receives response from L2 
-	rule l2SendRespL1(isL1Req == 2);
-		l2.respDeq;		
-		l1.l1Resp(resp);
+		l1CacheVec[proc].l1Resp(resp);
 		isL1Req <= 0;
-	endrule	
+	endrule
 	
 	// L2 sends request to L1 for Inv/GM/InvGM
 	rule l2SendL1InvGM(isL2Req == 0);
@@ -127,53 +162,6 @@ module mkProject(L2Cache#(numCPU));
 	
 		isL1Req <= 0;
 	endrule
-	
-/*	
-	typedef struct{
-	Bit#(numCPU) proc;
-	Addr		 addr;
-	L2ReqL1		 reqType;
-} L2ToNWCacheReq#(numeric type numCPU) deriving(Eq,Bits);
-	
-	/*
-	typedef struct{
-    CacheOp op;
-    Addr  addr;
-	BlockData bData;
-} L1ToL2CacheReq deriving(Eq,Bits); 
-
-typedef struct{
-    Addr addr;
-    L2ReqL1 reqType;
-} L2ReqToL1 deriving(Eq,Bits); 
-
-	typedef struct{
-    CacheOp op;
-    Addr  addr;
-    BlockData  data;
-    Bit#(numCPU) proc; // the requesting processor
-} CacheReq#(numeric type numCPU) deriving(Eq,Bits); */
-	/*l1
-	
-	method Action req(CPUToL1CacheReq r); 
-	method ActionValue#(Data) resp;
-	
-	method ActionValue#(L1ToL2CacheReq) l1Req; 
-	method Action l1Resp(BlockData r); 
-	method Action l1ChangeInvGM(L2ReqToL1 r);
-	method ActionValue#(BlockData) l1GetModified;
-	*/
-	/*l2
-	method ActionValue#(MemReq) mReqDeq;
-	method Action memResp(MemResp r);
-	method Action req(CacheReq#(numCPU) r);// if (status==Ready);
-	method BlockData resp;// if (hitQ.notEmpty);
-	method Action respDeq;
-	method ActionValue#(L2ToNWCacheReq#(numCPU)) cacheInvDeq; // if (invQ.notEmpty);
-	method Action cacheModifiedResp(BlockData data);// if (status == GetModified);
-	*/
-	
-	
 	
 endmodule
 

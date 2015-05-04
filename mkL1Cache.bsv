@@ -62,9 +62,9 @@ module mkL1Cache(L1Cache);
 		let found = miss.found;
 		WayL1 way = miss.way;
 		
-		let offset =  blockLocation.offset;
-		let idx =  blockLocation.idx;
-		let tag =  blockLocation.tag;
+		let offset = blockLocation.offset;
+		let idx = blockLocation.idx;
+		let tag = blockLocation.tag;
 		
 		//Bit#(TLog#(Words)) offset = truncate(addr>>2);
 		//IndexL1 idx = truncate(addr>>valueOf(OffsetSz));
@@ -92,9 +92,9 @@ module mkL1Cache(L1Cache);
 		let found = miss.found;
 		WayL1 way = miss.way;
 		
-		let offset =  blockLocation.offset;
-		let idx =  blockLocation.idx;
-		let tag =  blockLocation.tag;
+		let offset = blockLocation.offset;
+		let idx = blockLocation.idx;
+		let tag = blockLocation.tag;
 		
 		//Bit#(TLog#(Words)) offset = truncate(addr>>2);
 		//IndexL1 idx = truncate(addr>>valueOf(OffsetSz));
