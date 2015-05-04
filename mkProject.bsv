@@ -65,7 +65,9 @@ module mkProject(Project#(numCPU));
 	
 	// find which L1 will send request to L2
 	rule checkL1Req(stepL1Req == 0);
-		Bit#(TLog#(numCPU)) cnt = cntReq;
+		//Bit#(TLog#(numCPU)) cnt = cntReq;
+		Bit#(TLog#(numCPU)) cnt = 1;
+		
 		Bool flag = False;
 		//for(Integer i=unpack(cntReq) ; (i<valueof(numCPU) && flag == False) ; i=i+1)
 		/*while (cnt < fromInteger(valueOf(numCPU)) && flag == False)
@@ -82,16 +84,18 @@ module mkProject(Project#(numCPU));
 					cntReq <= cnt+1;
 				end
 				flag = True; //break the for loop
+				stepL1Req <= 1;
 			end
 			
-			else if (tmp == False && cnt == (fromInteger(valueOf(numCPU))-1)) begin //else check the next L1 cache
+			/*else if (tmp == False && cnt == (fromInteger(valueOf(numCPU))-1)) begin //else check the next L1 cache
 				cnt = 0;
 			end
 			else begin
 				cnt = cnt+1;
 			end
 		end*/
-		stepL1Req <= 1;
+		procForReq <= 0; //
+		stepL1Req <= 1;//
 	endrule
 	
 	// L1 sends request to L2, L2 receives request from L1
@@ -109,20 +113,6 @@ module mkProject(Project#(numCPU));
 		stepL1Req <= 2;
 	endrule
 	
-	/*// L1 sends request to L2, L2 receives request from L1
-	rule l1SendL2Req(stepL1Req == 0);
-		L1ToL2CacheReq l1ToL2Req <- l1.l1Req;
-		$display("TB> L1 sends L2 request for address 0x%h",l1ToL2Req.addr);
-		
-		CacheReq#(numCPU) l1ToL2REQ;
-		l1ToL2REQ.op = l1ToL2Req.op;
-		l1ToL2REQ.addr = l1ToL2Req.addr;
-		l1ToL2REQ.data = l1ToL2Req.bData;
-		l1ToL2REQ.proc = //TODO:how to get proc????
-		l2.req(l1ToL2REQ);
-		stepL1Req <= 1;
-	endrule*/
-	
 	// L2 sends response to L1, L1 receives response from L2 
 	rule l2SendRespL1(stepL1Req == 2);
 		let resp = l2.resp;
@@ -135,34 +125,39 @@ module mkProject(Project#(numCPU));
 	
 	// L2 sends request to L1 for Inv/GM/InvGM
 	rule l2SendL1InvGM(isL2Req == 0);
-		L2ToNWCacheReq#(numCPU) l2ToL1Req <- l2.cacheInvDeq; 
+		L2ToNWCacheReq#(numCPU) l2ToL1Req <- l2.cacheInvDeq; // l2 sends request 
 		$display("TB> L2 sends L1 request %d for address 0x%h" ,l2ToL1Req.reqType, l2ToL1Req.addr);
 		
+		//change type L2ToNWCacheReq to L2ReqToL1 in order to transfer the request to l1 
 		L2ReqToL1 l2ToL1REQ;
 		l2ToL1REQ.addr = l2ToL1Req.addr;
 		l2ToL1REQ.reqType = l2ToL1Req.reqType;
 		Bit#(numCPU) proc = l2ToL1Req.proc;
 		
-		invGMProc <= l2ToL1Req.proc; // for use of rule l1SendRespL2
+		//save the proc_vec given by l2 (indicates which processes need to do the requst)
+		// for use of rule l1SendRespL2
+		invGMProc <= l2ToL1Req.proc; 
 		
+		//according to the proc_vec send to the l1's the request
 		for (Integer i=0 ; i < valueof(numCPU) ; i = i+1)
 		begin
 			if (proc[i] == 1) begin
 				l1CacheVec[i].l1ChangeInvGM(l2ToL1REQ);
 			end
 		end
-	
+		
+		//flag the rule l1SendRespL2 to start
 		isL2Req <= 1;
 	endrule
 	
 	// L1 sends response to L2
 	rule l1SendRespL2(isL2Req == 1);
-		BlockData resp;
+		BlockData resp = 0;
 		for (Integer i=0 ; i < valueof(numCPU) ; i = i+1)
 		begin
 			if (invGMProc[i] == 1) begin
 				resp <- l1CacheVec[i].l1GetModified;
-				l2.cacheModifiedResp(resp);
+				//l2.cacheModifiedResp(resp);
 				$display("TB> sending L1 response to L2 with data 0x%h",resp);
 			end
 		end
