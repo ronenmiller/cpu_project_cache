@@ -4,13 +4,6 @@ import SpecialFIFOs::*;
 import Vector::*;
 import ProjectTypes::*;
 
-typedef struct{
-    L1ToL2CacheReq cReq;
-    Bool found;
-	WayL1 way;
-	Data data; //for write miss
-} L1ForMiss deriving(Eq,Bits); 
-
 // Interface
 interface L1Cache; 
 	//interface with CPU
@@ -23,8 +16,9 @@ interface L1Cache;
 	method ActionValue#(TagL1) getCellTag(IndexL1 i, WayL1 j);
 
 	//interface with L2
-	method ActionValue#(L1ToL2CacheReq) l1Req; 
-	method Action l1Resp(BlockData r); 
+	method ActionValue#(L1ToL2CacheReq) l1Reql2; 
+		method Action l1Reql2Deq;
+	method Action l2respl1(BlockData r); 
 	method ActionValue#(Bool) ismReqQFull;
 	method Action l1ChangeInvGM(L2ReqToL1 r);
 	method ActionValue#(BlockData) l1GetModified;
@@ -57,8 +51,26 @@ module mkL1Cache(L1Cache);
 	Reg#(Bit#(10))         missCnt <- mkReg(0);
 	Reg#(Bit#(10))         hitCnt <- mkReg(0);
 	 
-	//rule//startMiss
-	rule startMiss(status == StartMiss); 
+	/*****************************************************************************
+	//TODO: remove after 
+	//rule//printStats 
+	rule printStats(status==Ready);
+		$display("L1 Cache %d requests: Hits: %d , Misses: %d",hitCnt+missCnt, hitCnt, missCnt);
+	endrule
+	rule printCache;
+		for (Integer i=0 ; i<valueOf(RowsL1); i=i+1) begin
+			for (Integer j=0 ; j<valueOf(WaysL1); j=j+1) begin			
+				IndexL1 i1 = fromInteger(i);
+				WayL1 j1 = fromInteger(j);
+//				$display("block in row %d way %d is :\n data - %h ;\n state - %b ;\n tag - %h",i1,j1,dataArray[i1][j1],stateArray[i1][j1],tagArray[i1][j1]);
+				$display("block in row %d way %d is :\n state - %b ;\n tag - %h",i1,j1,stateArray[i1][j1],tagArray[i1][j1]);
+			end
+		end
+	endrule
+	/*****************************************************************************/
+		
+	//rule//sendFillReq
+	rule sendFillReq(status == SendFillReq); 
 		let addr = miss.cReq.addr;
 		let found = miss.found;
 		WayL1 way = miss.way;
@@ -66,25 +78,22 @@ module mkL1Cache(L1Cache);
 		let offset = blockLocation.offset;
 		let idx = blockLocation.idx;
 		let tag = blockLocation.tag;
-		
-		//Bit#(TLog#(Words)) offset = truncate(addr>>2);
-		//IndexL1 idx = truncate(addr>>valueOf(OffsetSz));
-		//TagL1 tag = truncateLSB(addr);
-		
+		$display("In fill request L1, Got Op %h",miss.cReq.op);
 		//check the condition
 		if((miss.found == False) && (cntrSet[idx] >= fromInteger(valueof(WaysL1)))) //block is not in the $ and need to swap out a block
 		begin
+			$display("In fill request L1 SO");
 			Addr addrT = zeroExtend({tagArray[idx][way], idx});
 			let dataT = dataArray[idx][way];
 			mReqQ.enq(L1ToL2CacheReq{op: WB, addr: addrT, bData: dataT}); //no need to wait for a response
+			miss <= L1ForMiss{cReq:miss.cReq, found:!found, way:way, data:miss.data}; 
 		end
-		status <= SendFillReq;
-	endrule
-	
-	//rule//sendFillReq
-	rule sendFillReq(status == SendFillReq); 
-		mReqQ.enq(miss.cReq);
-		status <= WaitFillResp;
+		else 
+		begin
+			$display("In fill request L1 no SO");
+			mReqQ.enq(miss.cReq);
+			status <= WaitFillResp;
+		end
 	endrule
 	
 	//rule//waitFillResp
@@ -96,10 +105,6 @@ module mkL1Cache(L1Cache);
 		let offset = blockLocation.offset;
 		let idx = blockLocation.idx;
 		let tag = blockLocation.tag;
-		
-		//Bit#(TLog#(Words)) offset = truncate(addr>>2);
-		//IndexL1 idx = truncate(addr>>valueOf(OffsetSz));
-		//TagL1 tag = truncateLSB(addr);
 
 		let blockData = mRespQ.first;
 		
@@ -117,7 +122,6 @@ module mkL1Cache(L1Cache);
 				stateArray[idx][way] <= Shared;
 				Vector#(Words, Bit#(DataSz)) words = unpack(blockData); 
 				hitQ.enq(words[offset]);
-				//print cache
 				$display("PRINT3-start");
 				for (Integer i=0 ; i<valueOf(RowsL1); i=i+1) begin
 					for (Integer j=0 ; j<valueOf(WaysL1); j=j+1) begin			
@@ -146,32 +150,12 @@ module mkL1Cache(L1Cache);
 		
 		let offset =  blockLocation.offset;
 		let idx =  blockLocation.idx;
-		
-		//Bit#(TLog#(Words)) offset = truncate(addr>>2);
-		//IndexL1 idx = truncate(addr>>valueOf(OffsetSz));
-
 		stateArray[idx][way] <= Modified;
 		Vector#(Words, Bit#(DataSz)) words = unpack(dataArray[idx][way]); 
 		words[offset] = miss.data; 
 		dataArray[idx][way] <= pack(words);
 		
-		//print cache
-		$display("PRINT2-start");
-		for (Integer i=0 ; i<valueOf(RowsL1); i=i+1) begin
-			for (Integer j=0 ; j<valueOf(WaysL1); j=j+1) begin			
-				IndexL1 i1 = fromInteger(i);
-				WayL1 j1 = fromInteger(j);
-				$display("block in row %d way %d is :\n data - %h ;\n state - %b ;\n tag - %h",i1,j1,dataArray[i1][j1],stateArray[i1][j1],tagArray[i1][j1]);
-			end
-		end
-		$display("PRINT2-end");
-		
 		status <= Ready;
-	endrule
-	
-	//rule//printStats 
-	rule printStats(status==Ready);
-		$display("L1 Cache %d requests: Hits: %d , Misses: %d",hitCnt+missCnt, hitCnt, missCnt);
 	endrule
 	
 	//rule//doInvGM - request from L2
@@ -182,10 +166,7 @@ module mkL1Cache(L1Cache);
 		let offset =  blockLocation.offset;
 		let idx =  blockLocation.idx;
 		let tag =  blockLocation.tag;
-		
-		//Bit#(TLog#(Words)) offset = truncate(req.addr>>2);
-		//IndexL1 idx = truncate(req.addr>>valueOf(OffsetSz)); //get index
-		//TagL1 tag = truncateLSB(req.addr); //get block tag
+
 		WayL1 way = 0;
 		// find tag in set 
 		for (Integer i=0; i<valueOf(WaysL1); i = i+1) begin
@@ -214,19 +195,12 @@ module mkL1Cache(L1Cache);
 		isInvGMReq <= 0;
 	endrule
 	
+
 	//method//request from CPU
 	method Action req(CPUToL1CacheReq r) if (status==Ready &&  isInvGMReq == 0);
 		$display("REQ"); //TODO
-		//print cache
 		$display("REQ-start");
-		for (Integer i=0 ; i<valueOf(RowsL1); i=i+1) begin
-			for (Integer j=0 ; j<valueOf(WaysL1); j=j+1) begin			
-				IndexL1 i1 = fromInteger(i);
-				WayL1 j1 = fromInteger(j);
-				$display("block in row %d way %d is :\n data - %h ;\n state - %b ;\n tag - %h",i1,j1,dataArray[i1][j1],stateArray[i1][j1],tagArray[i1][j1]);
-			end
-		end
-		$display("REQ-end");
+
 		
 		Bit#(TLog#(Words)) offset = truncate(r.addr>>2);
 		$display("offset is %h", offset);//TODO
@@ -276,7 +250,7 @@ module mkL1Cache(L1Cache);
 				rqR.bData = ?; //no need for bData	
 				
 				miss <= L1ForMiss{cReq:rqR, found:found, way:way, data:?}; //data for write only
-				status <= StartMiss;
+				status <= SendFillReq;
 			end
 		end
     
@@ -310,9 +284,10 @@ module mkL1Cache(L1Cache);
 				rqW.bData = ?; //no need for bData	
 				
 				miss <= L1ForMiss{cReq:rqW, found:found, way:way, data:r.data};  
-				status <= StartMiss;
+				status <= SendFillReq;
 			end
 		end
+		$display("REQ-end");
 	endmethod
 		
 	//method//response to CPU
@@ -322,14 +297,16 @@ module mkL1Cache(L1Cache);
 	endmethod
 	
 	//method//request to L2
-	method ActionValue#(L1ToL2CacheReq) l1Req; 
-		//return mReqQ.deq;
-		mReqQ.deq;
+	method ActionValue#(L1ToL2CacheReq) l1Reql2; 
 		return mReqQ.first;
 	endmethod
 	
+	method Action l1Reql2Deq;
+		mReqQ.deq;
+	endmethod
+	
 	//method//response from L2
-	method Action l1Resp(BlockData r); 
+	method Action l2respl1(BlockData r); 
 		mRespQ.enq(r);
 	endmethod
 	

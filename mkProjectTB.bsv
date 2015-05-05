@@ -11,6 +11,7 @@ module mkProjectTB();
 	Reg#(Bit#(32)) cycle <- mkReg(0);
 	Reg#(Bit#(1)) isMemReq <- mkReg(0);
 	Reg#(Bool) initialized <- mkReg(False);
+	Reg#(Bit#(1)) isCacheReq <- mkReg(0);
 	
 	CacheProj#(NumCPU) cache <- mkProject;
 	
@@ -31,27 +32,26 @@ module mkProjectTB();
 	rule checkStart(state == Start);
 		state <= Run;
 	endrule
-	
-	//rule countCyc - count the number of cycles
-	rule countCyc(state == Run);
-		cycle <= cycle+1;
-		$display("##Cycle: %d##",cycle);
-		if (cycle == 10) begin
-			state <= Finish;
-		end
-	endrule
+
 
 	// push l1 request
-	rule pushReq0(state==Run && cycle ==1);
+	rule pushReq0(state==Run && isCacheReq == 0);
 		CPUToL1CacheReq r;
-		r.op = Wr;
-		r.addr = 32'b1101;
-		r.data = ?;
+		r.op = Rd;
+		r.addr = 32'b11111011011101101;
+		r.data = 32'b1;
 		$display("Sending request to cache for address: 0x%h",r.addr);
 		cache.cacheProcIF[0].req(r);
+		isCacheReq <= 1;
+	endrule
+	
+	// get response from cache
+	rule getCacheResp (isCacheReq == 1);
 		let response <- cache.cacheProcIF[0].resp;
 		$display("Got response from cache: 0x%h",response);
+		isCacheReq <= 0;
 	endrule
+		
 	
 	// get mem req from l2
 	rule getMemReq(state == Run && isMemReq == 0);
@@ -76,6 +76,15 @@ module mkProjectTB();
 	rule checkFinished(state == Finish);
 		$display("Finish");
 		$finish;
+	endrule
+		
+	//rule countCyc - count the number of cycles
+	rule countCyc(state == Run);
+		cycle <= cycle+1;
+		$display("##Cycle: %d##",cycle);
+		if (cycle == 10) begin
+			state <= Finish;
+		end
 	endrule
 
 endmodule

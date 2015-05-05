@@ -45,16 +45,15 @@ module mkProject(CacheProj#(numCPU));
 	
 	Reg#(Bool) start <- mkReg(False);
 	
-	// find which L1 will send request to L2
+	// find out which L1 will send request to L2
 	rule checkL1Req(stepL1Req == 0);
 		Bit#(TLog#(numCPU)) cnt = cntReq;
-		//Bit#(TLog#(numCPU)) cnt = 1;
-		
+		$display("TB> Checking for L1 to L2 request...");
 		Bool flag = False;
 		for(Integer i = 0 ; (i<valueof(numCPU) && flag == False) ; i=i+1)
-		//while (cnt < fromInteger(valueOf(numCPU)) && flag == False)
 		begin
 			let isFull <- l1CacheVec[cnt].ismReqQFull;
+			$display("TB> Checking for L1[%h] isFull: %b",cnt,isFull);
 			if(isFull == True) begin //if there is a request from the next L1 cache
 				stepL1Req <= 1;
 				procForReq <= cnt;
@@ -67,29 +66,44 @@ module mkProject(CacheProj#(numCPU));
 			end
 		end
 	endrule
-	
+	// TODO: print for TB
+	rule printprocForReq(stepL1Req == 1);
+		$display("procForReq: %h", procForReq);
+	endrule
 	// L1 sends request to L2, L2 receives request from L1
 	rule l1SendL2Req(stepL1Req == 1);
 		Bit#(TLog#(numCPU)) proc = procForReq;
-		L1ToL2CacheReq l1ToL2Req <- l1CacheVec[proc].l1Req;
+		$display("TB> L1 procForReq is : %d",procForReq);
+		/************************************
+		THIS LINE IS THE ISSUE:
+		//L1ToL2CacheReq l1ToL2Req <- l1CacheVec[proc].l1Reql2;
+		******************************************************/
+		/*
+		l1CacheVec[procForReq].l1Reql2Deq;
 		$display("TB> L1 number %d sends L2 request for address 0x%h",proc, l1ToL2Req.addr);
-		
 		CacheReq#(numCPU) l1ToL2REQ;
 		l1ToL2REQ.op = l1ToL2Req.op;
 		l1ToL2REQ.addr = l1ToL2Req.addr;
 		l1ToL2REQ.data = l1ToL2Req.bData;
 		l1ToL2REQ.proc = (1<<proc);
 		l2Cache.req(l1ToL2REQ);
+		*/
+		CacheReq#(numCPU) l1ToL2REQ;
+		l1ToL2REQ.op = Rd;
+		l1ToL2REQ.addr = 32'b11111011011101101;
+		l1ToL2REQ.data = ?;
+		l1ToL2REQ.proc = (1<<proc);
+		$display("TB> sending with processor: %b",l1ToL2REQ.proc);
+		l2Cache.req(l1ToL2REQ);
 		stepL1Req <= 2;
 	endrule
 	
 	// L2 sends response to L1, L1 receives response from L2 
 	rule l2SendRespL1(stepL1Req == 2);
-		let resp = l2Cache.resp;
+		let resp <- l2Cache.resp;
 		$display("TB> sending L2 response with data 0x%h",resp);
-		//l2Cache.respDeq;	
-		
-		l1CacheVec[procForReq].l1Resp(resp);
+		l2Cache.respDeq;	
+		l1CacheVec[procForReq].l2respl1(resp);
 		stepL1Req <= 0;
 	endrule
 	
@@ -134,7 +148,7 @@ module mkProject(CacheProj#(numCPU));
 			end
 		end
 		l2Cache.cacheModifiedResp(respVec[modProc]);
-		stepL1Req <= 0;
+		isL2Req <= 0;
 	endrule
 	
 	/***********************************************
@@ -166,8 +180,3 @@ module mkProject(CacheProj#(numCPU));
 	endmethod
 	
 endmodule
-
-
-
-
-

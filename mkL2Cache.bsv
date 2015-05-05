@@ -12,7 +12,7 @@ interface L2Cache#(numeric type numCPU);
 	method ActionValue#(MemReq) mReqDeq;
 	method Action memResp(MemResp r);
 	method Action req(CacheReq#(numCPU) r);// if (status==Ready);
-	method BlockData resp;// if (hitQ.notEmpty);
+	method  ActionValue#(BlockData) resp;// if (hitQ.notEmpty);
 	method Action respDeq;
 	method ActionValue#(L2ToNWCacheReq#(numCPU)) cacheInvDeq; // if (invQ.notEmpty);
 	method Action cacheModifiedResp(BlockData data);// if (status == GetModified);
@@ -39,15 +39,14 @@ module mkL2Cache(L2Cache#(numCPU));
 	// wb get modified value req FIFOF
 	FIFOF#(BlockData) cacheModifiedQ <- mkBypassFIFOF(); //TODO: method to get modified val
 	// write back block location
+	Reg#(BlockLocationL2) 			blockLocation 		<- mkRegU;
 	
-	Reg#(BlockLocationL2) blockLocation <- mkRegU;
-	Reg#(CacheReq#(numCPU))     missReq <- mkRegU;
-	Reg#(CacheStatus) status <- mkReg(Ready);
-	FIFOF#(MemReq)   mReqQ <- mkFIFOF;
-	//	FIFOF#(BlockData) mRespQ <- mkFIFOF;
-	FIFOF#(MemResp) mRespQ <- mkFIFOF;
-	Reg#(Bit#(numCPU)) modifier <- mkReg(0);
-	Reg#(Bool) isHit <- mkReg(False);
+	Reg#(CacheReq#(numCPU))    		missReq 			<- mkRegU;
+	Reg#(CacheStatus)	 			status 				<- mkReg(Ready);
+	FIFOF#(MemReq)   				mReqQ 				<- mkFIFOF;
+	FIFOF#(MemResp) 				mRespQ 				<- mkFIFOF;
+	Reg#(Bit#(numCPU)) 				modifier 			<- mkReg(0);
+	Reg#(Bool) 						isHit 				<- mkReg(False);
 	// directory
 	Directory#(numCPU,BlocksL2) dir <- mkDirectory();
 	//TODO: remove hit/miss counters
@@ -63,6 +62,7 @@ module mkL2Cache(L2Cache#(numCPU));
 			return res;
 	endfunction
 	
+	/*
 	rule printL2CacheStatus;
 		for (Integer i=0; i< valueOf(RowsL2); i = i+1) begin
 			for (Integer j=0; j< valueOf(WaysL2); j = j+1) begin
@@ -73,7 +73,7 @@ module mkL2Cache(L2Cache#(numCPU));
 			end
 		end
 	endrule
-	
+	*/
 	
 	// TODO: remove once debug is finished:
 	rule printCacheState;
@@ -98,9 +98,7 @@ module mkL2Cache(L2Cache#(numCPU));
 		end
 		else $display("Status could not be read");
 		$display("Cache status is %s:",stateStr);
-		$display("Misses: %d:",missCntr);
-		$display("Hits: %d:",hitCntr);
-		$display("InvCmd: %b:",invCmd);
+		$display("Misses: %d,Hits: %d:",missCntr,hitCntr);
 	endrule
 	
 	// get modified value from modifier L1 cache
@@ -111,7 +109,6 @@ module mkL2Cache(L2Cache#(numCPU));
 		dataArray[idx][way] <= data;
 		if (isHit) begin
 			status <= FillHit;
-			//hitQ.enq(blockLocation);
 			isHit <= False;
 		end
 		else status <= WrBack;
@@ -199,9 +196,7 @@ module mkL2Cache(L2Cache#(numCPU));
 			invCmd <= dirRep.reqType;
 			missCntr <= missCntr + 1;
 			cntrArr[idx] <= cntrArr[idx]+1;
-			$display("reply pre is: invVec: %b pstate: %d nstate: %d reqType %b",dirRep.invVec,dirRep.pState,dirRep.nState,dirRep.reqType);
 			if (dirRep.invVec != 0) begin
-				$display("reply post is: invVec: %b pstate: %d nstate: %d reqType %b",dirRep.invVec,dirRep.pState,dirRep.nState,dirRep.reqType);
 				invQ.enq(L2ToNWCacheReq{proc:dirRep.invVec,addr:r.addr,reqType:dirRep.reqType});
 			end
 			case (dirRep.pState) matches
@@ -268,7 +263,7 @@ module mkL2Cache(L2Cache#(numCPU));
 	endmethod
 	
 	// return response to requesting cache
-	method BlockData resp if (hitQ.notEmpty);// if (hitQ.notEmpty);
+	method ActionValue#(BlockData) resp if (hitQ.notEmpty);// if (hitQ.notEmpty);
 		let location = hitQ.first;
 		let idx = location.idx;
 		let way = location.way;

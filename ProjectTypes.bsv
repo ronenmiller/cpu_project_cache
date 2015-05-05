@@ -26,7 +26,7 @@ typedef Bit#(TLog#(RowsL1)) IndexL1;// deriving(Eq,Bits);
 typedef Bit#(TLog#(WaysL1)) WayL1;// deriving(Eq,Bits);
 
 typedef Bit#(TSub#(AddrSz, TAdd#(TLog#(RowsL1), OffsetSz))) TagL1; // [Tag;Index;Offset]
-typedef enum {Ready, StartMiss, SendFillReq, WaitFillResp, DoWrite} CacheStatusL1 deriving (Bits, Eq);
+typedef enum {Ready, SendFillReq, WaitFillResp, DoWrite} CacheStatusL1 deriving (Bits, Eq);
 typedef enum{Shared,Modified,Invalid} CacheCellType deriving (Bits, Eq);
 typedef enum{Inv,GM,InvGM,None} L2ReqL1 deriving (Bits, Eq);
 
@@ -52,6 +52,14 @@ typedef struct{
 	Bit#(TLog#(Words)) offset;
 	TagL1 tag;
 } BlockLocationL1 deriving(Eq,Bits);
+
+typedef struct{
+    L1ToL2CacheReq cReq;
+    Bool found;
+	WayL1 way;
+	Data data; //for write miss
+} L1ForMiss deriving(Eq,Bits); 
+
 ////////////////////////////////////
 
 typedef Data Line;
