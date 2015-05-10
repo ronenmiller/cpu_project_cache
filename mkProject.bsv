@@ -87,7 +87,7 @@ module mkProject(CacheProj#(numCPU));
 		l1ToL2REQ.data = l1ToL2Req.bData;
 		l1ToL2REQ.proc = (1<<proc);
 		l2Cache.req(l1ToL2REQ);
-		*/
+		*/z
 		CacheReq#(numCPU) l1ToL2REQ;
 		l1ToL2REQ.op = Rd;
 		l1ToL2REQ.addr = 32'b11111011011101101;

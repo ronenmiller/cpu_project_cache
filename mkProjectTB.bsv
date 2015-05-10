@@ -44,14 +44,14 @@ module mkProjectTB();
 		cache.cacheProcIF[0].req(r);
 		isCacheReq <= 1;
 	endrule
-	
+	/*
 	// get response from cache
 	rule getCacheResp (isCacheReq == 1);
 		let response <- cache.cacheProcIF[0].resp;
 		$display("Got response from cache: 0x%h",response);
 		isCacheReq <= 0;
 	endrule
-		
+	
 	
 	// get mem req from l2
 	rule getMemReq(state == Run && isMemReq == 0);
@@ -71,7 +71,7 @@ module mkProjectTB();
 		cache.memResp(resp);
 		isMemReq <= 0;
 	endrule
-	
+	*/
 	// finish
 	rule checkFinished(state == Finish);
 		$display("Finish");

@@ -11,15 +11,15 @@ interface L1Cache;
 	method ActionValue#(Data) resp;
 	
 	//for printing the cache TODO:remove
-	method ActionValue#(BlockData) getCellData(IndexL1 i, WayL1 j);
-	method ActionValue#(CacheCellType) getCellState(IndexL1 i, WayL1 j);
-	method ActionValue#(TagL1) getCellTag(IndexL1 i, WayL1 j);
+	method BlockData getCellData(IndexL1 i, WayL1 j);
+	method CacheCellType getCellState(IndexL1 i, WayL1 j);
+	method TagL1 getCellTag(IndexL1 i, WayL1 j);
 
 	//interface with L2
-	method ActionValue#(L1ToL2CacheReq) l1Reql2; 
-		method Action l1Reql2Deq;
+	method L1ToL2CacheReq l1Reql2; 
+	method Action l1Reql2Deq;
 	method Action l2respl1(BlockData r); 
-	method ActionValue#(Bool) ismReqQFull;
+	method Bool ismReqQFull;
 	method Action l1ChangeInvGM(L2ReqToL1 r);
 	method ActionValue#(BlockData) l1GetModified;
 endinterface
@@ -39,7 +39,7 @@ module mkL1Cache(L1Cache);
 	
 	// Bypass FIFOF 
 	FIFOF#(Data)            hitQ <- mkBypassFIFOF(); //for hit response
-	FIFOF#(L1ToL2CacheReq)  mReqQ <- mkFIFOF; //TODO: Fifo#(2, MemReq) memReqQ <- mkCFFifo;
+	FIFOF#(L1ToL2CacheReq)  mReqQ <- mkBypassFIFOF; //TODO: Fifo#(2, MemReq) memReqQ <- mkCFFifo;
 	FIFOF#(BlockData)       mRespQ <- mkFIFOF; //TODO: Fifo#(2, Line) memRespQ <- mkCFFifo;
 	FIFOF#(L2ReqToL1)       l2ReqQ <- mkFIFOF;
 	FIFOF#(BlockData)       l2RespQ <- mkFIFOF;
@@ -291,19 +291,20 @@ module mkL1Cache(L1Cache);
 	endmethod
 		
 	//method//response to CPU
-	method ActionValue#(Data) resp;
+	method ActionValue#(Data) resp if (hitQ.notEmpty);
 		hitQ.deq;
 		return hitQ.first;
 	endmethod
 	
 	//method//request to L2
-	method ActionValue#(L1ToL2CacheReq) l1Reql2; 
+	method L1ToL2CacheReq l1Reql2 if (mReqQ.notEmpty); 
 		return mReqQ.first;
 	endmethod
 	
-	method Action l1Reql2Deq;
+	method Action l1Reql2Deq if (mReqQ.notEmpty); 
 		mReqQ.deq;
 	endmethod
+	
 	
 	//method//response from L2
 	method Action l2respl1(BlockData r); 
@@ -311,7 +312,7 @@ module mkL1Cache(L1Cache);
 	endmethod
 	
 	//method//check is there is a request to L2
-	method ActionValue#(Bool) ismReqQFull;
+	method Bool ismReqQFull;
 		return mReqQ.notEmpty;
 	endmethod
 	
@@ -322,22 +323,21 @@ module mkL1Cache(L1Cache);
 	endmethod
 	
 	//method// response to L2 for GM/InvGM
-	method ActionValue#(BlockData) l1GetModified; 
-		//return l2RespQ.deq;
+	method ActionValue#(BlockData) l1GetModified if (l2RespQ.notEmpty); 
 		l2RespQ.deq;
 		return l2RespQ.first;
 	endmethod
 	
 	//method//for printing the cache TODO:remove
-	method ActionValue#(BlockData) getCellData(IndexL1 i, WayL1 j);
+	method BlockData getCellData(IndexL1 i, WayL1 j);
 		return dataArray[i][j];		
 	endmethod
 	
-	method ActionValue#(CacheCellType) getCellState(IndexL1 i, WayL1 j);
+	method CacheCellType getCellState(IndexL1 i, WayL1 j);
 		return stateArray[i][j];		
 	endmethod
 	
-	method ActionValue#(TagL1) getCellTag(IndexL1 i, WayL1 j);
+	method TagL1 getCellTag(IndexL1 i, WayL1 j);
 		return tagArray[i][j];		
 	endmethod
 	
