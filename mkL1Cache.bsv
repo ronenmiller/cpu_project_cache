@@ -3,6 +3,7 @@ import FIFO::*;
 import SpecialFIFOs::*;
 import Vector::*;
 import ProjectTypes::*;
+import Fifo::*;
 
 // Interface
 interface L1Cache; 
@@ -16,8 +17,7 @@ interface L1Cache;
 	method TagL1 getCellTag(IndexL1 i, WayL1 j);
 
 	//interface with L2
-	method L1ToL2CacheReq l1Reql2; 
-	method Action l1Reql2Deq;
+	method ActionValue#(L1ToL2CacheReq) l1Reql2; 
 	method Action l2respl1(BlockData r); 
 	method Bool ismReqQFull;
 	method Action l1ChangeInvGM(L2ReqToL1 r);
@@ -39,7 +39,8 @@ module mkL1Cache(L1Cache);
 	
 	// Bypass FIFOF 
 	FIFOF#(Data)            hitQ <- mkBypassFIFOF(); //for hit response
-	FIFOF#(L1ToL2CacheReq)  mReqQ <- mkBypassFIFOF; //TODO: Fifo#(2, MemReq) memReqQ <- mkCFFifo;
+	FIFOF#(L1ToL2CacheReq)  mReqQ <- mkFIFOF; //TODO: Fifo#(2, MemReq) memReqQ <- mkCFFifo;
+	//Fifo#(2, L1ToL2CacheReq) mReqQ <- mkCFFifo;
 	FIFOF#(BlockData)       mRespQ <- mkFIFOF; //TODO: Fifo#(2, Line) memRespQ <- mkCFFifo;
 	FIFOF#(L2ReqToL1)       l2ReqQ <- mkFIFOF;
 	FIFOF#(BlockData)       l2RespQ <- mkFIFOF;
@@ -90,6 +91,7 @@ module mkL1Cache(L1Cache);
 		end
 		else 
 		begin
+		
 			$display("In fill request L1 no SO");
 			mReqQ.enq(miss.cReq);
 			status <= WaitFillResp;
@@ -297,12 +299,9 @@ module mkL1Cache(L1Cache);
 	endmethod
 	
 	//method//request to L2
-	method L1ToL2CacheReq l1Reql2 if (mReqQ.notEmpty); 
-		return mReqQ.first;
-	endmethod
-	
-	method Action l1Reql2Deq if (mReqQ.notEmpty); 
+	method ActionValue#(L1ToL2CacheReq) l1Reql2 if (mReqQ.notEmpty); 
 		mReqQ.deq;
+		return mReqQ.first;
 	endmethod
 	
 	

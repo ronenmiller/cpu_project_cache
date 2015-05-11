@@ -5,6 +5,7 @@ import Vector::*;
 import mkL1Cache::*;
 import mkL2Cache::*;
 import ProjectTypes::*;
+import ConfigReg :: * ;
 
 
 // interface between L1cache and processor
@@ -37,74 +38,58 @@ module mkProject(CacheProj#(numCPU));
 	L2Cache#(numCPU) l2Cache <- mkL2Cache();
 	
 	// Reg
-	Reg#(Bit#(2)) stepL1Req 	         <- mkReg(0);
-	Reg#(Bit#(1)) isL2Req                <- mkReg(0);
-	Reg#(Bit#(numCPU)) invGMProc         <- mkReg(0);
-	Reg#(Bit#(TLog#(numCPU))) cntReq     <- mkReg(0);
-	Reg#(Bit#(TLog#(numCPU))) procForReq <- mkReg(0);
-	
-	Reg#(Bool) start <- mkReg(False);
+	Reg#(Bit#(1)) isL2Req                	<- mkReg(0);
+	Reg#(Bit#(numCPU)) invGMProc         	<- mkReg(0);
+	Reg#(UInt#(TLog#(numCPU))) cntReq     	<- mkReg(0);
+	Reg#(UInt#(TLog#(numCPU))) procForReq 	<- mkConfigReg(0);
+	Reg#(ProjState) state					<- mkReg(Ready);
+	Reg#(CacheReq#(numCPU)) l1ToL2Req		<- mkRegU;
+
 	
 	// find out which L1 will send request to L2
-	rule checkL1Req(stepL1Req == 0);
-		Bit#(TLog#(numCPU)) cnt = cntReq;
+	rule checkL1Req(state == Ready);
+		UInt#(TLog#(numCPU)) cnt = cntReq;
 		$display("TB> Checking for L1 to L2 request...");
 		Bool flag = False;
 		for(Integer i = 0 ; (i<valueof(numCPU) && flag == False) ; i=i+1)
 		begin
-			let isFull <- l1CacheVec[cnt].ismReqQFull;
+			let isFull = l1CacheVec[cnt].ismReqQFull;
 			$display("TB> Checking for L1[%h] isFull: %b",cnt,isFull);
 			if(isFull == True) begin //if there is a request from the next L1 cache
-				stepL1Req <= 1;
+				let reqFromL1 <- l1CacheVec[i].l1Reql2;
+				CacheReq#(numCPU) reqToL2;
+				reqToL2.op = reqFromL1.op;
+				reqToL2.addr = reqFromL1.addr;
+				reqToL2.data = reqFromL1.bData;
+				reqToL2.proc = (1<<cnt);
+				l1ToL2Req <= reqToL2;
+				state <= SendL2Req;
 				procForReq <= cnt;
-				$display("TB> L1 number %d will send to L2 a request",procForReq);
+				$display("TB> L1 number %d will send to L2 a request",cnt);
 				flag = True; //break the for loop
-				cntReq <= cnt+1; //
+				cntReq <= cnt+1; 
 			end
 			else begin
 				cnt = cnt+1;
 			end
 		end
 	endrule
-	// TODO: print for TB
-	rule printprocForReq(stepL1Req == 1);
-		$display("procForReq: %h", procForReq);
-	endrule
-	// L1 sends request to L2, L2 receives request from L1
-	rule l1SendL2Req(stepL1Req == 1);
-		Bit#(TLog#(numCPU)) proc = procForReq;
-		$display("TB> L1 procForReq is : %d",procForReq);
-		/************************************
-		THIS LINE IS THE ISSUE:
-		//L1ToL2CacheReq l1ToL2Req <- l1CacheVec[proc].l1Reql2;
-		******************************************************/
-		/*
-		l1CacheVec[procForReq].l1Reql2Deq;
-		$display("TB> L1 number %d sends L2 request for address 0x%h",proc, l1ToL2Req.addr);
-		CacheReq#(numCPU) l1ToL2REQ;
-		l1ToL2REQ.op = l1ToL2Req.op;
-		l1ToL2REQ.addr = l1ToL2Req.addr;
-		l1ToL2REQ.data = l1ToL2Req.bData;
-		l1ToL2REQ.proc = (1<<proc);
-		l2Cache.req(l1ToL2REQ);
-		*/z
-		CacheReq#(numCPU) l1ToL2REQ;
-		l1ToL2REQ.op = Rd;
-		l1ToL2REQ.addr = 32'b11111011011101101;
-		l1ToL2REQ.data = ?;
-		l1ToL2REQ.proc = (1<<proc);
-		$display("TB> sending with processor: %b",l1ToL2REQ.proc);
-		l2Cache.req(l1ToL2REQ);
-		stepL1Req <= 2;
+
+	// send request from L1 to L2
+	rule sendReqToL2(state == SendL2Req);
+		l2Cache.req(l1ToL2Req); 
+		$display("TB> sending L2 req");
+		state <= WaitL2Resp;
+		
 	endrule
 	
 	// L2 sends response to L1, L1 receives response from L2 
-	rule l2SendRespL1(stepL1Req == 2);
+	rule l2SendRespL1(state == WaitL2Resp);
 		let resp <- l2Cache.resp;
-		$display("TB> sending L2 response with data 0x%h",resp);
-		l2Cache.respDeq;	
+		$display("TB> getting L2 response");
+		l2Cache.respDeq;
 		l1CacheVec[procForReq].l2respl1(resp);
-		stepL1Req <= 0;
+		state <= Ready;
 	endrule
 	
 	// L2 sends request to L1 for Inv/GM/InvGM
