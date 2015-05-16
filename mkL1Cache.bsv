@@ -10,7 +10,8 @@ interface L1Cache;
 	//interface with CPU
 	method Action req(CPUToL1CacheReq r); 
 	method ActionValue#(Data) resp;
-	
+	method Action printStam;
+	method Action l1Reql2Deq;
 	//for printing the cache TODO:remove
 	method BlockData getCellData(IndexL1 i, WayL1 j);
 	method CacheCellType getCellState(IndexL1 i, WayL1 j);
@@ -39,7 +40,7 @@ module mkL1Cache(L1Cache);
 	
 	// Bypass FIFOF 
 	FIFOF#(Data)            hitQ <- mkBypassFIFOF(); //for hit response
-	FIFOF#(L1ToL2CacheReq)  mReqQ <- mkFIFOF; //TODO: Fifo#(2, MemReq) memReqQ <- mkCFFifo;
+	FIFOF#(L1ToL2CacheReq)  mReqQ <- mkFIFOF(); //TODO: Fifo#(2, MemReq) memReqQ <- mkCFFifo;
 	//Fifo#(2, L1ToL2CacheReq) mReqQ <- mkCFFifo;
 	FIFOF#(BlockData)       mRespQ <- mkFIFOF; //TODO: Fifo#(2, Line) memRespQ <- mkCFFifo;
 	FIFOF#(L2ReqToL1)       l2ReqQ <- mkFIFOF;
@@ -299,11 +300,18 @@ module mkL1Cache(L1Cache);
 	endmethod
 	
 	//method//request to L2
-	method ActionValue#(L1ToL2CacheReq) l1Reql2 if (mReqQ.notEmpty); 
-		mReqQ.deq;
+	method ActionValue#(L1ToL2CacheReq) l1Reql2; 
 		return mReqQ.first;
 	endmethod
 	
+	// dequeue from L1 to L2 req Q.
+	method Action l1Reql2Deq;
+		mReqQ.deq;
+	endmethod
+	
+	method Action printStam;
+		$display("i am l1");
+	endmethod
 	
 	//method//response from L2
 	method Action l2respl1(BlockData r); 

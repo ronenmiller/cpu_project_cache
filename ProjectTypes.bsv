@@ -77,7 +77,7 @@ typedef struct{
 
 typedef enum{Rd, Wr, WB, Inv} CacheOp deriving(Eq,Bits);
 typedef enum{Shared,Modified,Invalid} StateType deriving (Bits, Eq);
-
+typedef enum{Ready,SendL2Req,WaitL2Resp} ProjState deriving(Eq,Bits);
 typedef struct{
     CacheOp op;
     Addr  addr;
