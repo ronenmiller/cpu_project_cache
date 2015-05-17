@@ -36,78 +36,78 @@ module mkProject(CacheProj#(numCPU));
 	// create L2 cache
 	L2Cache#(numCPU) l2Cache <- mkL2Cache();
 	
-	// Reg
-	Reg#(Bit#(2)) stepL1Req 	         	<- mkReg(0);
-	Reg#(Bit#(1)) isL2Req                	<- mkReg(0);
-	Reg#(Bit#(numCPU)) invGMProc         	<- mkReg(0);
-	Reg#(Bit#(TLog#(numCPU))) cntReq     	<- mkReg(0);
-	Reg#(Bit#(TLog#(numCPU))) procForReq 	<- mkReg(0);
-	Reg#(ProjState) state					<- mkReg(Ready);
-
+	// Regs & FIFOS
+	//Reg#(Bool) 				isL2Req    	<- mkReg(0);
+	//Reg#(Bit#(numCPU)) 			invGMProc   <- mkReg(0);
+	Reg#(Bit#(TLog#(numCPU))) 	cntReq     	<- mkReg(0);
+	Reg#(Bit#(TLog#(numCPU))) 	procForReq 	<- mkReg(0);
+	Reg#(ProjState) 			state		<- mkReg(Ready);
 	
-	// find out which L1 will send request to L2
+	Vector#(numCPU,FIFOF#(CacheReq#(numCPU))) 	l1ToL2ReqVec	<- replicateM(mkFIFOF);
+
 	rule checkL1Req(state == Ready);
 		Bit#(TLog#(numCPU)) cnt = cntReq;
 		$display("TB> Checking for L1 to L2 request...");
 		Bool flag = False;
 		for(Integer i = 0 ; (i<valueof(numCPU) && flag == False) ; i=i+1)
 		begin
-			let isFull = l1CacheVec[cnt].ismReqQFull;
+			let isFull = l1ToL2ReqVec[cnt].notEmpty;
 			$display("TB> Checking for L1[%h] isFull: %b",cnt,isFull);
 			if(isFull == True) begin //if there is a request from the next L1 cache
-				state <= SendL2Req;
-				procForReq <= cnt;
+				let req = l1ToL2ReqVec[cnt].first;
+				CacheReq#(numCPU) reqToL2;
+				reqToL2.op = req.op;
+				reqToL2.addr = req.addr;
+				reqToL2.data = req.bData;
+				reqToL2.proc = (1<<cnt);
+				l2Cache.req(reqToL2);
+				procForReq <= (cnt);
+				l1ToL2ReqVec[cnt].deq;
 				$display("TB> L1 number %d will send to L2 a request",cnt);
 				flag = True; //break the for loop
 				cntReq <= cnt+1; 
+				state <= WaitL2Resp;
 			end
 			else begin
 				cnt = cnt+1;
 			end
 		end
 	endrule
-
-	rule printProc(state == SendL2Req);
-		$display("procForReq: %h",procForReq);
-		$display("L1 state is: %h",state);
-	endrule
-	
-	rule sendReqToL2(state == SendL2Req);
-		let reqFromL1 = l1CacheVec[procForReq].l1Reql2;
-		l1CacheVec[procForReq].l1Reql2Deq;
-		CacheReq#(numCPU) reqToL2;
-		reqToL2.op = reqFromL1.op;
-		reqToL2.addr = reqFromL1.addr;
-		reqToL2.data = reqFromL1.bData;
-		reqToL2.proc = (1<<procForReq);
-		l2Cache.req(reqToL2);
-		$display("TB> sending L2 req");
-		state <= WaitL2Resp;
-	endrule
 	
 	// L2 sends response to L1, L1 receives response from L2 
 	rule l2SendRespL1(state == WaitL2Resp);
+		let proc = procForReq;
 		let resp <- l2Cache.resp;
 		$display("TB> getting L2 response");
 		l2Cache.respDeq;
-		l1CacheVec[procForReq].l2respl1(resp);
+		l1CacheVec[proc].l2respl1(resp);
 		state <= Ready;
 	endrule
 	
-	/***********************************************
-	Fill up interface for cpu and l1 communication
-	************************************************/
 	for (Integer i=0; i < valueOf(numCPU); i = i+1) begin
-		cacheProcIF0[i] = interface L1Cache_Proc;
-								method Action req(CPUToL1CacheReq r); 
-									l1CacheVec[i].req(r);
-								endmethod
-								
-								method ActionValue#(Data) resp;
-									let cResp <- l1CacheVec[i].resp;
-  									return cResp;                    
-								endmethod
-							endinterface;
+		/***********************************************
+		Fill up interface for cpu and l1 communication
+		************************************************/
+		cacheProcIF0[i] = 
+			interface L1Cache_Proc;
+				method Action req(CPUToL1CacheReq r); 
+					l1CacheVec[i].req(r);
+				endmethod
+				
+				method ActionValue#(Data) resp;
+					let cResp <- l1CacheVec[i].resp;
+					return cResp;                    
+				endmethod
+			endinterface;
+			
+		/*************************************************
+		Get requests from L1 caches and fill up vector.
+		*************************************************/
+		rule fillL1ReqVec;
+			let r <- l1CacheVec[i].l1Reql2;
+			l1ToL2ReqVec[i].enq(r);
+			l1CacheVec[i].l1Reql2Deq;
+		endrule
 	end
 	interface cacheProcIF = cacheProcIF0;
 	
