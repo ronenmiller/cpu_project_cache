@@ -1,4 +1,3 @@
-
 import Types::*;
 import ProcTypes::*;
 //import MemTypes::*;
@@ -14,6 +13,9 @@ import Vector::*;
 interface Proc;
    method ActionValue#(Tuple2#(RIndx, Data)) cpuToHost;
    method Action hostToCpu(Bit#(32) startpc);
+   //interface with L1 (Memory)
+   	method ActionValue#(CPUToL1CacheReq) cpuReqL1; 
+	method Action l1respCPU(Data r); 
 endinterface
 
 (* synthesize *)
@@ -25,19 +27,18 @@ module [Module] mkProc(Proc);
   Cop        cop    <- mkCop;
   
   // fifo for working with memory
-  FIFOF#(MemReq)  cpuReqQ  <- mkFIFOF();
-  FIFOF#(MemResp)  cpuRespQ <- mkFIFOF();
+  FIFOF#(CPUToL1CacheReq)  cpuReqQ   <- mkFIFOF();
+  FIFOF#(Data)  cpuRespQ             <- mkFIFOF();
   
   rule doProc(cop.started);
-	MemReq req;
-	MemResp resp;
-	req.op = Ld;
-    req.byteEn = ?;
-    req.addr = pc;
-    req.data = ?;
-	
-	cpuReqQ.enq(req);
-	resp = cpuRespQ.first;
+	//request for instruction
+	CPUToL1CacheReq reqI;
+	reqI.op = Rd;
+    reqI.addr = pc;
+    reqI.data = ?;
+	cpuReqQ.enq(reqI);
+	//get response from L1
+	let inst = cpuRespQ.first;
 	cpuRespQ.deq;
     //let inst = iMem.req(pc);
     
@@ -67,13 +68,32 @@ module [Module] mkProc(Proc);
     // memory
     if(eInst.iType == Ld)
     begin
-      let data <- dMem.req(MemReq{op: Ld, addr: eInst.addr, byteEn: ?, data: ?});
-      eInst.data = gatherLoad(eInst.addr, eInst.byteEn, eInst.unsignedLd, data);
+		//request for data
+		CPUToL1CacheReq reqLd;
+		reqLd.op = Rd;
+		reqLd.addr = eInst.addr;
+		reqLd.data = ?;
+		cpuReqQ.enq(reqLd);
+		//get response from L1
+		let data = cpuRespQ.first;
+		cpuRespQ.deq;
+	
+		//let data <- dMem.req(MemReq{op: Ld, addr: eInst.addr, byteEn: ?, data: ?});
+		eInst.data = gatherLoad(eInst.addr, eInst.byteEn, eInst.unsignedLd, data);
     end
     else if(eInst.iType == St)
     begin
-      match {.byteEn, .data} = scatterStore(eInst.addr, eInst.byteEn, eInst.data);
-      let d <- dMem.req(MemReq{op: St, addr: eInst.addr, byteEn: byteEn, data: data});
+		match {.byteEn, .data} = scatterStore(eInst.addr, eInst.byteEn, eInst.data);
+		//request for data
+		CPUToL1CacheReq reqSt;
+		reqSt.op = Wr;
+		reqSt.addr = eInst.addr;
+		reqSt.data = data;
+		cpuReqQ.enq(reqSt);
+		
+		//no response from L1 for St operation
+		
+		//let d <- dMem.req(MemReq{op: St, addr: eInst.addr, byteEn: byteEn, data: data});
     end
 
     // write back
@@ -99,3 +119,12 @@ module [Module] mkProc(Proc);
     pc <= startpc;
   endmethod
 endmodule
+
+	method ActionValue#(CPUToL1CacheReq) cpuReqL1;
+		cpuReqQ.deq;
+		return cpuReqQ.first;
+	endmethod
+	
+	method Action l1respCPU(Data r);
+		cpuRespQ.enq(r);
+	endmethod
