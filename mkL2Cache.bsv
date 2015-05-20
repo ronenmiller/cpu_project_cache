@@ -61,20 +61,7 @@ module mkL2Cache(L2Cache#(numCPU));
 			BlockNumL2 res = zeroExtend(idx)*fromInteger(valueOf(WaysL2))+zeroExtend(way);
 			return res;
 	endfunction
-	
-	/*
-	rule printL2CacheStatus;
-		for (Integer i=0; i< valueOf(RowsL2); i = i+1) begin
-			for (Integer j=0; j< valueOf(WaysL2); j = j+1) begin
-				BlockNumL2 bNum = getBlockNum(fromInteger(i),fromInteger(j));
-				TypeDirStats#(numCPU) dStats = dir.getDirStats(bNum);
-				$display("blocknum: %3d state: %1d present: %b Index: %4d Way: %2d",bNum,dStats.state,dStats.present,i,j);
-				$display("tag: %h",tagArray[i][j]);
-			end
-		end
-	endrule
-	*/
-	
+
 	// TODO: remove once debug is finished:
 	rule printCacheState;
 		String stateStr = "Ready";
@@ -96,16 +83,17 @@ module mkL2Cache(L2Cache#(numCPU));
 		else if (status == GetModified) begin
 			stateStr = "GetModified";
 		end
-		else $display("Status could not be read");
-		$display("Cache status is %s:",stateStr);
-		$display("Misses: %d,Hits: %d:",missCntr,hitCntr);
+		else $display("L2> Status could not be read");
+		$display("L2> status - %s, Misses: %h,Hits: %h:",stateStr,missCntr,hitCntr);
 	endrule
 	
 	// get modified value from modifier L1 cache
 	rule doGetModified(status == GetModified);
+		$display("L2> getting modified");
 		IndexL2 idx = blockLocation.idx;
 		WayL2 way = blockLocation.way;
 		BlockData data = cacheModifiedQ.first;
+		cacheModifiedQ.deq;
 		dataArray[idx][way] <= data;
 		if (isHit) begin
 			status <= FillHit;
@@ -144,11 +132,12 @@ module mkL2Cache(L2Cache#(numCPU));
 		// move block state in directory for new block
 		let dirRep <- dir.requestBlock(TypeDirReq{blockNum:getBlockNum(idx,way),op:missReq.op,proc:missReq.proc,dest:?});
 	endrule
-	
+	/*
 	// deq the response from l1
-	rule doModDeq(status==FillHit && cacheModifiedQ.notEmpty);
+	rule doModDeq(status==Ready && cacheModifiedQ.notEmpty);
 		cacheModifiedQ.deq;
 	endrule
+	*/
 	
 	// once memory returned value and updated in cache return value
 	rule doFillHit (status==FillHit);
@@ -232,6 +221,7 @@ module mkL2Cache(L2Cache#(numCPU));
 			if (r.op != WB) hitCntr <= hitCntr + 1;
 			if (dirRep.invVec != 0) begin
 				invQ.enq(L2ToNWCacheReq{proc:dirRep.invVec,addr:r.addr,reqType:dirRep.reqType});
+				$display("Send invGM cmd %h, proc %b",dirRep.reqType,dirRep.invVec);
 			end
 			case (dirRep.pState) matches
 				Shared:
@@ -299,4 +289,5 @@ module mkL2Cache(L2Cache#(numCPU));
 	endmethod
 	/********************************************/
 endmodule
+
 

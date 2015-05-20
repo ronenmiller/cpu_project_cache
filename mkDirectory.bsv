@@ -175,15 +175,15 @@ endinterface
    
 module mkDirectory(Directory#(numCPU,blocks));
 	Vector#(blocks,DirLine#(numCPU)) dir <- replicateM(mkDirLine());
-	/*
+	
 	//TODO:remove
 	rule printBlockState;
-		for (Integer i=0 ; i<valueOf(Blocks); i=i+1) begin
+		for (Integer i=0 ; i<valueOf(blocks); i=i+1) begin
 			let stats = dir[i].getDirStats;
 			$display("block %d state is : %b present is %b",i,stats.state,stats.present);
 		end
 	endrule
-	*/
+	
 	/**********************************************************************
 		ActionValue method  : request
 		receives			: numCPU - type to define number of cpu's.
@@ -205,3 +205,4 @@ module mkDirectory(Directory#(numCPU,blocks));
 	endmethod
 	
 endmodule
+
