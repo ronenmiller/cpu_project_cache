@@ -139,7 +139,7 @@ module mkL1Cache(L1Cache#(numCPU));
 	endrule
 	
 	//rule//doInvGM - request from L2
-	rule doInvGM(status == Ready && isInvGMReq == 1);
+	rule doInvGM(isInvGMReq == 1);
 		L2ReqToL1 req = l2ReqQ.first;
 		l2ReqQ.deq;
 		$display("L1> ID %h, got invgm cmd %h",idReg,req.reqType);
@@ -316,4 +316,3 @@ module mkL1Cache(L1Cache#(numCPU));
 	endmethod
 	
 endmodule
-

@@ -65,6 +65,7 @@ typedef struct{
 typedef Data Line;
 
 typedef BlockData MemResp;
+typedef Data IMemResp;
 
 typedef enum{Ld, St} MemOp deriving(Eq,Bits);
 typedef enum {Ready, FillReq, FillResp, FillHit, WrBack, GetModified} CacheStatus deriving (Bits, Eq);

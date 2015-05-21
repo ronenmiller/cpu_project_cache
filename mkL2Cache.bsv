@@ -187,6 +187,7 @@ module mkL2Cache(L2Cache#(numCPU));
 			cntrArr[idx] <= cntrArr[idx]+1;
 			if (dirRep.invVec != 0) begin
 				invQ.enq(L2ToNWCacheReq{proc:dirRep.invVec,addr:r.addr,reqType:dirRep.reqType});
+				$display("L2> Send invGM cmd %h, proc %b",dirRep.reqType,dirRep.invVec);
 			end
 			case (dirRep.pState) matches
 				Shared:
@@ -221,7 +222,7 @@ module mkL2Cache(L2Cache#(numCPU));
 			if (r.op != WB) hitCntr <= hitCntr + 1;
 			if (dirRep.invVec != 0) begin
 				invQ.enq(L2ToNWCacheReq{proc:dirRep.invVec,addr:r.addr,reqType:dirRep.reqType});
-				$display("Send invGM cmd %h, proc %b",dirRep.reqType,dirRep.invVec);
+				$display("L2> Send invGM cmd %h, proc %b",dirRep.reqType,dirRep.invVec);
 			end
 			case (dirRep.pState) matches
 				Shared:
@@ -289,5 +290,4 @@ module mkL2Cache(L2Cache#(numCPU));
 	endmethod
 	/********************************************/
 endmodule
-
 

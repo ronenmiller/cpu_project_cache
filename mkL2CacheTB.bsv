@@ -207,7 +207,7 @@ module mkL2CacheTB();
 	rule countcyc(state == Run);
 		cycle <= cycle+1;
 		$display("Cycle: %d",cycle);
-		if (cycle == 200) begin
+		if (cycle == 250) begin
 			state <= Finish;
 		end
 	endrule

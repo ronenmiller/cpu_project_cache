@@ -62,6 +62,7 @@ module mkDirLine (DirLine#(numCPU));
 		rep.pState = Invalid;
 		rep.nState = Invalid;
 		rep.reqType = None;
+		
 		if (req.op == Rd) begin //read
 			case (state) matches
 				Shared: 
@@ -134,7 +135,7 @@ module mkDirLine (DirLine#(numCPU));
 							present <= 0;
 							state <= Invalid;
 							rep.nState = Invalid;
-							rep.reqType = Inv;
+							rep.reqType = InvGM;
 						end
 						else begin // write back request from L1 dest == DestL2
 							rep.invVec = 0;						
@@ -205,4 +206,3 @@ module mkDirectory(Directory#(numCPU,blocks));
 	endmethod
 	
 endmodule
-

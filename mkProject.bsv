@@ -153,7 +153,7 @@ module mkProject(CacheProj#(numCPU));
 		rule fillModVal(state != Ready);
 			let val <- l1CacheVec[i].l1GetModified; 
 		    l2Cache.cacheModifiedResp(val);
-		    $display("returned value %h",val);
+		    $display("mkProj> returned modified value from l1 to l2 %h",val);
 		endrule
 	end
 	
@@ -173,4 +173,3 @@ module mkProject(CacheProj#(numCPU));
 	endmethod
 	
 endmodule
-

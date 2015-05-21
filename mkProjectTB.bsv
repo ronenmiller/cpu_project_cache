@@ -1,6 +1,7 @@
 import mkProject::*;
 import ProjectTypes::*;
 import Randomizable :: * ;
+import Fifo::*;
 
 typedef 4 NumCPU; 
 typedef enum {Start, Run, Finish, Print} State deriving (Bits, Eq);
@@ -11,8 +12,12 @@ module mkProjectTB();
 	Reg#(Bit#(32)) cycle <- mkReg(0);
 	Reg#(Bit#(1)) isMemReq <- mkReg(0);
 	Reg#(Bool) initialized <- mkReg(False);
+	Reg#(Addr) randAddrReg	<-mkReg(0);
+	Reg#(Bit#(TLog#(NumCPU))) procReg <- mkReg(0);
 	
 	CacheProj#(NumCPU) cache <- mkProject;
+
+	Fifo#(40,Addr) addrBank <- mkCFFifo;
 	
 	//rands
 	Randomize#(MemResp) randDataMem <- mkGenericRandomizer;
@@ -48,7 +53,7 @@ module mkProjectTB();
 	endrule
 	
 	/************************************
-	Test case 1:
+	Test case 2:
 		- send Wr req for same address
 	*************************************/
 	// send WR request for proc 2
@@ -61,15 +66,6 @@ module mkProjectTB();
 		cache.cacheProcIF[2].req(r);
 	endrule
 	
-	// send WR request for proc 2
-	rule pushReq2(state == Run && cycle == 22);
-		CPUToL1CacheReq r;
-		r.op = Wr;
-		r.addr = 32'b11111011011101100;
-		r.data = 32'h28;
-		$display("Sending Wr request to cache 2 for address: 0x%h",r.addr);
-		cache.cacheProcIF[2].req(r);
-	endrule
 	
 	// send WR request for proc 2
 	rule pushReq3(state == Run && cycle == 22);
@@ -91,29 +87,43 @@ module mkProjectTB();
 		cache.cacheProcIF[1].req(r);
 	endrule
 	
-	/*
-	// send WR request for proc 1
-	rule pushReq2(state == Run && cycle == 22);
-		CPUToL1CacheReq r;
-		r.op = Wr;
-		r.addr = 32'b11111011011101100;
-		r.data = 32'h24;
-		$display("Sending Wr request to cache 1 for address: 0x%h",r.addr);
-		cache.cacheProcIF[1].req(r);
-	endrule
-	*/
-	/*
-	// push l1[0:1] requests
-	rule pushReq0(state==Run && cycle = 16);
+	
+	// send Rd request for proc 0,2,3 for same block
+	rule pushReq5(state == Run && cycle == 40);
 		CPUToL1CacheReq r;
 		r.op = Rd;
-		// offset = 2, index = 2, tag = 2
-		r.addr = 32'b101001000;
-		r.data = 32'b1;
-		$display("Sending request to cache 0 for address: 0x%h",r.addr);
+		r.addr = 32'b11111011011101100;
+		r.data = ?;
+		$display("Sending Wr request to cache 0,2,3 for address: 0x%h",r.addr);
+		cache.cacheProcIF[0].req(r);
 		cache.cacheProcIF[2].req(r);
+		cache.cacheProcIF[3].req(r);
 	endrule
-	*/
+	
+	
+	// send Rd request for rand proc and rand addr
+	rule pushReq6(state == Run && cycle >= 80 && cycle < 120);
+		CPUToL1CacheReq r;
+		r.op = Rd;
+		r.addr = randAddrReg;
+		r.data = ?;
+		$display("Sending Wr request to cache %h for address: 0x%h",procReg,r.addr);
+		cache.cacheProcIF[procReg].req(r);
+		addrBank.enq(randAddrReg);
+	endrule
+	
+	
+	// send Rd request for rand proc and rand addr
+	rule pushReq7(state == Run && cycle >= 120 && addrBank.notEmpty);
+		CPUToL1CacheReq r;
+		r.op = Rd;
+		r.addr = addrBank.first;
+		r.data = ?;
+		$display("Sending Wr request to cache 1 for address: 0x%h",r.addr);
+		cache.cacheProcIF[procReg].req(r);
+		addrBank.deq;
+	endrule
+
 	for (Integer i=0; i < valueOf(NumCPU); i = i+1) begin
 		// get response from cache
 		rule getCacheResp;
@@ -149,12 +159,14 @@ module mkProjectTB();
 		
 	//rule countCyc - count the number of cycles
 	rule countCyc(state == Run);
+		let a <- randAddr.next;
+		randAddrReg <= a;
+		procReg <= procReg + 3;
 		cycle <= cycle+1;
 		$display("##Cycle: %d##",cycle);
-		if (cycle == 40) begin
+		if (cycle == 200) begin
 			state <= Finish;
 		end
 	endrule
 
 endmodule
-

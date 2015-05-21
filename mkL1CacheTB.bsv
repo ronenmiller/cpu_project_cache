@@ -1,5 +1,5 @@
 import mkL1Cache::*;
-import projectTypes::*;
+import ProjectTypes::*;
 import Randomizable :: * ;
 
 //typedef 1 NumCPU; 
@@ -47,14 +47,14 @@ module mkL1CacheTB();
 		cycle <= cycle+1;
 		$display("##Cycle: %d##",cycle);
 		
-		if (cycle == 10) begin
+		if (cycle == 30) begin
 			state <= Finish;
 		end
 	endrule
 
 	// L2 gets request from L1
 	rule getL1Req(state == Run && isL1Req == 0);
-		L1ToL2CacheReq r <- l1.l1Req;
+		L1ToL2CacheReq r <- l1.l1Reql2;
 		$display("TB> got L1 request for address 0x%h",r.addr);
 		isL1Req <= 1;
 		//MemResp resp <- rand32.next;
@@ -64,7 +64,7 @@ module mkL1CacheTB();
 	rule l2Resp(state == Run && isL1Req == 1);
 		BlockData resp <- rand32.next;
 		$display("TB> sending L2 response with data 0x%h",resp);
-		l1.l1Resp(resp);
+		l1.l2respl1(resp);
 		isL1Req <= 0;
 	endrule
 
