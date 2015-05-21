@@ -27,7 +27,7 @@ module mkTestBench();
 		state <= Run;
 	endrule
 	  
- 	// start program in all CPUs
+ 	// start program in CPU
 	rule init(state == Start);
 		proc.hostToCpu(32'h1000);
 	endrule
@@ -41,7 +41,7 @@ module mkTestBench();
 		isWr <= (r.op == Wr);
 	endrule
 	
-	// get l1 response and send to cpu
+	// get l1 response and send to cpu (in case of load)
 	rule getCacheRespRd(state == Run && !sendReq && !isWr);
 		let r <- cache.cacheProcIF[nextL1].resp;
 		$display("TB> sending cache response with data 0x%h", r);
@@ -50,13 +50,14 @@ module mkTestBench();
 		sendReq <= True;
 	endrule
 	
-	// get l1 response and send to cpu
+	// get l1 response and send to cpu (for Store no need to wait for response)
 	rule getCacheRespWr(state == Run && !sendReq && isWr);
 		$display("TB> Finished Wr");
 		nextL1 <= nextL1+1;
 		sendReq <= True;
 	endrule
 	
+	// check if simulation finished
 	rule checkFinished(state == Run);
 		let c <- proc.cpuToHost;
 		$display("\n--------------------------------------------\n");

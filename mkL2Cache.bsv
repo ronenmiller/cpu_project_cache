@@ -11,12 +11,13 @@ import ProjectTypes::*;
 interface L2Cache#(numeric type numCPU);
 	method ActionValue#(MemReq) mReqDeq;
 	method Action memResp(MemResp r);
-	method Action req(CacheReq#(numCPU) r);// if (status==Ready);
-	method  ActionValue#(BlockData) resp;// if (hitQ.notEmpty);
+	method Action req(CacheReq#(numCPU) r);
+	method  ActionValue#(BlockData) resp;
 	method Action respDeq;
-	method ActionValue#(L2ToNWCacheReq#(numCPU)) cacheInvDeq; // if (invQ.notEmpty);
-	method Action cacheModifiedResp(BlockData data);// if (status == GetModified);
-	//TODO: remove
+	method ActionValue#(L2ToNWCacheReq#(numCPU)) cacheInvDeq;
+	method Action cacheModifiedResp(BlockData data);
+	
+	//TODO: for debug
 	method Bit#(32) getMiss;
 	method Bit#(32) getHit;
 	method TypeDirStats#(numCPU) getDirStats(Addr addr);
@@ -132,12 +133,7 @@ module mkL2Cache(L2Cache#(numCPU));
 		// move block state in directory for new block
 		let dirRep <- dir.requestBlock(TypeDirReq{blockNum:getBlockNum(idx,way),op:missReq.op,proc:missReq.proc,dest:?});
 	endrule
-	/*
-	// deq the response from l1
-	rule doModDeq(status==Ready && cacheModifiedQ.notEmpty);
-		cacheModifiedQ.deq;
-	endrule
-	*/
+
 	
 	// once memory returned value and updated in cache return value
 	rule doFillHit (status==FillHit);
@@ -277,7 +273,7 @@ module mkL2Cache(L2Cache#(numCPU));
 		mRespQ.enq(r);
 	endmethod
 	
-	//TODO: remove
+	//TODO: for debug
 	/********************************************/
 	method Bit#(32) getMiss;
 		return missCntr;

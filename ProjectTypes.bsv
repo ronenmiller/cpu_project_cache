@@ -1,4 +1,6 @@
-// cache types
+/****************************************************
+*	This file combines most definitions used in project
+*****************************************************/
 import Vector::*;
 typedef 32 AddrSz;
 typedef 4 RowsL2;
@@ -95,7 +97,7 @@ typedef struct{
 } MemReq deriving(Eq,Bits);
 
 
-// TODO: remove
+// TODO: for debug
 // dir stats 
 typedef struct{
 	Bit#(numCPU) present;

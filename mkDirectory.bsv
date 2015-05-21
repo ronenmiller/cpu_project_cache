@@ -7,8 +7,10 @@ import ProjectTypes::*;
 /***************************
 	defines and structs:
 ****************************/
+
 /* destination of writeback*/
 typedef enum{DestMem,DestL2} WBDest deriving (Bits, Eq);
+
 /* struct to hold request from L2 $ to directory. */
 typedef struct {
 	BlockNumL2 blockNum;
@@ -177,7 +179,9 @@ endinterface
 module mkDirectory(Directory#(numCPU,blocks));
 	Vector#(blocks,DirLine#(numCPU)) dir <- replicateM(mkDirLine());
 	
-	//TODO:remove
+	/****************************
+	TODO: for debug
+	****************************/
 	rule printBlockState;
 		for (Integer i=0 ; i<valueOf(blocks); i=i+1) begin
 			let stats = dir[i].getDirStats;
@@ -199,7 +203,7 @@ module mkDirectory(Directory#(numCPU,blocks));
 
 	
 	/****************************
-	TODO: remove
+	TODO: for debug
 	****************************/
 	method TypeDirStats#(numCPU) getDirStats(BlockNumL2 blockNum);
 		return dir[blockNum].getDirStats;

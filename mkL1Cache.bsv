@@ -15,7 +15,7 @@ interface L1Cache#(numeric type numCPU);
 	method Action req(CPUToL1CacheReq r); 
 	method ActionValue#(Data) resp;
 
-	//for printing the cache TODO:remove
+	//for printing the cache TODO: for debug
 	method BlockData getCellData(IndexL1 i, WayL1 j);
 	method CacheCellType getCellState(IndexL1 i, WayL1 j);
 	method TagL1 getCellTag(IndexL1 i, WayL1 j);

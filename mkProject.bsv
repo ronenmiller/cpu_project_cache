@@ -27,7 +27,7 @@ endinterface
 // mkProject module
 module mkProject(CacheProj#(numCPU));
 	
-	// cpu to l1 interface vector - see fill at end of code
+	// cpu to l1 interface vector - see fill later on
 	Vector#(numCPU, L1Cache_Proc) cacheProcIF0;
 	
 	// create L1 cache
@@ -106,8 +106,8 @@ module mkProject(CacheProj#(numCPU));
 	// L2 sends request to L1 for Inv/GM/InvGM
 	rule l2SendL1InvGM;
 		L2ToNWCacheReq#(numCPU) l2ToL1Req <- l2Cache.cacheInvDeq; // l2 sends request 
-		$display("TB> L2 sends L1 request %d for address 0x%h proc %b" ,l2ToL1Req.reqType, l2ToL1Req.addr, l2ToL1Req.proc);
 		
+		//$display("TB> L2 sends L1 request %d for address 0x%h proc %b" ,l2ToL1Req.reqType, l2ToL1Req.addr, l2ToL1Req.proc);
 		//change type L2ToNWCacheReq to L2ReqToL1 in order to transfer the request to l1 
 		L2ReqToL1 l2ToL1REQ;
 		l2ToL1REQ.addr = l2ToL1Req.addr;

@@ -1,10 +1,7 @@
-//import Types::*;
 import ProjectTypes::*;
 import ProcTypes::*;
-//import MemTypes::*;
 import RFile::*;
 import IMemory::*;
-//import DMemory::*;
 import Decode::*;
 import Exec::*;
 import Cop::*;
@@ -16,24 +13,24 @@ typedef enum {SendReq,WBSt,WBLd} CopState deriving (Bits, Eq);
 interface Proc;
    method ActionValue#(Tuple2#(RIndx, Data)) cpuToHost;
    method Action hostToCpu(Bit#(32) startpc);
-   //interface with L1 (Memory)
+   
+   //interface with L1-cache
 	method ActionValue#(CPUToL1CacheReq) cpuReqCache; 
 	method Action cacheRespCPU(Data r); 
 endinterface
 
 (* synthesize *)
 module [Module] mkProc(Proc);
-  Reg#(Addr) pc     <- mkRegU;
-  RFile      rf     <- mkRFile;
-  IMemory  iMem   <- mkIMemory;
-  //DMemory  dMem   <- mkDMemory;
-  Cop        cop    <- mkCop;
-  Reg#(ExecInst) eInstReg     <- mkRegU;
-  Reg#(CopState) state     <- mkReg(SendReq);
+  Reg#(Addr) 		pc     		<- mkRegU;
+  RFile      		rf     		<- mkRFile;
+  IMemory  			iMem   		<- mkIMemory;
+  Cop        		cop    		<- mkCop;
+  Reg#(ExecInst) 	eInstReg    <- mkRegU;
+  Reg#(CopState) 	state     	<- mkReg(SendReq);
   
   // fifo for working with memory
-  FIFOF#(CPUToL1CacheReq)  cpuReqQ   <- mkFIFOF();
-  FIFOF#(Data)  cpuRespQ             <- mkFIFOF();
+  FIFOF#(CPUToL1CacheReq)  	cpuReqQ   	<- mkFIFOF();
+  FIFOF#(Data)  			cpuRespQ	<- mkFIFOF();
   
   rule printPC;
   	$display("PROC> PC is %h",pc);
@@ -41,7 +38,6 @@ module [Module] mkProc(Proc);
   
   rule doProcSendReq(cop.started && state == SendReq);
 	//request for instruction
-	$display("IN DO_PROC>");
     let inst = iMem.req(pc);
     $display("OneCyc> received IMemResp %h",inst);
     

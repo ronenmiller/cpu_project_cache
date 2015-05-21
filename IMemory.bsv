@@ -1,5 +1,4 @@
 import ProjectTypes::*;
-//import MemTypes::*;
 import RegFile::*;
 
 interface IMemory;

@@ -2,7 +2,6 @@ import mkL1Cache::*;
 import ProjectTypes::*;
 import Randomizable :: * ;
 
-//typedef 1 NumCPU; 
 typedef enum {Start, Run, Finish, Print} State deriving (Bits, Eq);
 
 // This TB is for 2 CPU
